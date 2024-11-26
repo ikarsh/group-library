@@ -1,5 +1,8 @@
 import itertools
-from typing import Any, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Iterator, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
 class FreeGroup:
@@ -10,14 +13,34 @@ class FreeGroup:
                 raise ValueError(
                     f"Generators cannot be prefixes of each other: {gen0}, {gen1}"
                 )
+        self.gen_names = gen_names
         self.gens = gens
         self.name = name
 
     def __repr__(self):
         return f"FreeGroup({self.gens})" if self.name is None else self.name
 
+    def __hash__(self):
+        return hash((self.name, self.gen_names))
+
     def identity(self):
         return FreeGroupElement(self, [])
+
+    def subgroup(
+        self, relations_: List["FreeGroupGenerator | FreeGroupElement | str"]
+    ) -> "SubgroupOfFreeGroup":
+        from subgroup_of_free_group import SubgroupOfFreeGroup
+
+        relations: List["FreeGroupElement"] = []
+        for relation in relations_:
+            if isinstance(relation, FreeGroupGenerator):
+                relation = relation.as_group_element()
+            elif isinstance(relation, str):
+                relation = FreeGroupElement.from_str(self, relation)
+            assert isinstance(relation, FreeGroupElement)
+            relations.append(relation)
+
+        return SubgroupOfFreeGroup(self, relations)
 
 
 class FreeGroupGenerator:
@@ -26,6 +49,9 @@ class FreeGroupGenerator:
             raise ValueError(f"Invalid generator name: {name}")
         self.free_group = free_group
         self.name = name
+
+    def __hash__(self):
+        return hash((self.free_group, self.name))
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FreeGroupGenerator):
@@ -66,11 +92,11 @@ class FreeGroupElement:
         self.free_group = free_group
         self.word = word
 
-    def __iter__(self) -> Iterator["FreeGroupElement"]:
-        return (
-            FreeGroupElement(self.free_group, [(gen, power)])
-            for (gen, power) in self.word
-        )
+    def __iter__(self) -> Iterator[Tuple[FreeGroupGenerator, int]]:
+        return iter(self.word)
+
+    def __hash__(self) -> int:
+        return hash((self.free_group, tuple(self.reduce().word)))
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FreeGroupGenerator):
@@ -92,11 +118,12 @@ class FreeGroupElement:
     def is_identity(self) -> bool:
         return not self.word
 
-    def from_str(self, s_: str) -> "FreeGroupElement":
+    @classmethod
+    def from_str(cls, free_group: FreeGroup, s_: str) -> "FreeGroupElement":
         word: List[Tuple[FreeGroupGenerator, int]] = []
         s = s_.replace(" ", "")
         while s:
-            for gen in self.free_group.gens:
+            for gen in free_group.gens:
                 if s.startswith(gen.name):
                     s = s[len(gen.name) :]
                     if s.startswith("^"):
@@ -106,11 +133,11 @@ class FreeGroupElement:
                         if s.startswith("-"):
                             s = s[1:]
                             sign = -1
+                        if not s or not s[0].isdigit() or s[0] == "0":
+                            raise ValueError(f"Invalid power in {s_}")
                         while s and s[0].isdigit():
                             power = 10 * power + int(s[0])
                             s = s[1:]
-                        else:
-                            raise ValueError(f"Invalid power in {s_}")
                         power *= sign
                     else:
                         power = 1
@@ -120,7 +147,7 @@ class FreeGroupElement:
             else:
                 raise ValueError(f"Invalid generator in {s_}")
 
-        return FreeGroupElement(self.free_group, word).reduce()
+        return FreeGroupElement(free_group, word).reduce()
 
     def reduce(self) -> "FreeGroupElement":
         word: List[Tuple[FreeGroupGenerator, int]] = []

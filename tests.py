@@ -1,4 +1,5 @@
 from free_group import FreeGroup, FreeGroupElement
+from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
 def test_free_group():
@@ -19,3 +20,8 @@ def test_free_group():
     assert x**5 == x * x * x * x * x
     assert x.conjugate(y) == y * x * ~y
     assert FreeGroupElement.commutator(x, y) == x * y * ~x * ~y
+
+
+def test_subgroup_of_free_group():
+    F = FreeGroup(("a", "b"))
+    a, b = F.gens
