@@ -105,6 +105,9 @@ class FreeGroupElement:
             return False
         return self.free_group == other.free_group and self.word == other.word
 
+    def copy(self) -> "FreeGroupElement":
+        return FreeGroupElement(self.free_group, self.word.copy())
+
     def __repr__(self) -> str:
         if self.is_identity():
             return "identity"
@@ -181,6 +184,27 @@ class FreeGroupElement:
                 word.append((gen, power))
         return FreeGroupElement(self.free_group, word)
 
+    def __imul__(
+        self, other: "FreeGroupGenerator | FreeGroupElement"
+    ) -> "FreeGroupElement":
+        if isinstance(other, FreeGroupGenerator):
+            other = other.as_group_element()
+        assert isinstance(other, FreeGroupElement)
+        if self.free_group != other.free_group:
+            raise ValueError(
+                f"Cannot multiply elements from different free groups: {self.free_group}, {other.free_group}"
+            )
+        assert isinstance(other, FreeGroupElement)
+
+        for gen, power in other.word:
+            if self.word and self.word[-1][0] == gen:
+                self.word[-1] = (gen, self.word[-1][1] + power)
+                if self.word[-1][1] == 0:
+                    self.word.pop()
+            else:
+                self.word.append((gen, power))
+        return self
+
     def __invert__(self) -> "FreeGroupElement":
         return FreeGroupElement(
             self.free_group, [(gen, -power) for (gen, power) in self.word[::-1]]
@@ -211,19 +235,18 @@ class FreeGroupElement:
             )
         return other * self * ~other
 
-    @classmethod
-    def commutator(
-        cls,
-        a: "FreeGroupGenerator | FreeGroupElement",
-        b: "FreeGroupGenerator | FreeGroupElement",
-    ) -> "FreeGroupElement":
-        if isinstance(a, FreeGroupGenerator):
-            a = a.as_group_element()
-        if isinstance(b, FreeGroupGenerator):
-            b = b.as_group_element()
-        assert isinstance(a, FreeGroupElement) and isinstance(b, FreeGroupElement)
-        if a.free_group != b.free_group:
-            raise ValueError(
-                f"Cannot compute commutator of elements from different free groups: {a.free_group}, {b.free_group}"
-            )
-        return a * b * ~a * ~b
+
+def commutator(
+    a: "FreeGroupGenerator | FreeGroupElement",
+    b: "FreeGroupGenerator | FreeGroupElement",
+) -> "FreeGroupElement":
+    if isinstance(a, FreeGroupGenerator):
+        a = a.as_group_element()
+    if isinstance(b, FreeGroupGenerator):
+        b = b.as_group_element()
+    assert isinstance(a, FreeGroupElement) and isinstance(b, FreeGroupElement)
+    if a.free_group != b.free_group:
+        raise ValueError(
+            f"Cannot compute commutator of elements from different free groups: {a.free_group}, {b.free_group}"
+        )
+    return a * b * ~a * ~b

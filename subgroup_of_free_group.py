@@ -1,5 +1,5 @@
 import itertools
-from typing import Dict, List, Literal, Optional, Set, Tuple
+from typing import Dict, List, Literal, Set, Tuple
 from free_group import FreeGroup, FreeGroupElement, FreeGroupGenerator
 
 
@@ -58,8 +58,11 @@ class LabeledEdgeGraph:
         if v0 == v1:
             raise ValueError("Vertices are the same")
         for v, e in self.forward_edges[v1]:
-            self.add_edge(v0, v, e)
-            self.forward_edges[v].remove((v1, flip(e)))
+            if v == v1:
+                self.add_edge(v0, v0, e)
+            else:
+                self.add_edge(v0, v, e)
+                self.forward_edges[v].remove((v1, flip(e)))
         self.vertices.remove(v1)
         del self.forward_edges[v1]
 
@@ -72,6 +75,7 @@ class SubgroupOfFreeGroup:
 
         self.free_group = free_group
         self.setup_graph(relations)
+        self.reduce_graph()
         self.free_gens = self.gens_from_graph()
 
     def setup_graph(self, relations: List[FreeGroupElement]):
@@ -94,6 +98,7 @@ class SubgroupOfFreeGroup:
             assert curr_elem == relation
             self.labeled_edge_graph.join_vertices(self.free_group.identity(), curr_elem)
 
+    def reduce_graph(self):
         vertices_to_clean = self.labeled_edge_graph.vertices.copy()
         while vertices_to_clean:
             v = vertices_to_clean.pop()
@@ -102,6 +107,8 @@ class SubgroupOfFreeGroup:
             ):
                 if e1 == e2:
                     self.labeled_edge_graph.join_vertices(x1, x2)
+                    if x2 in vertices_to_clean:
+                        vertices_to_clean.remove(x2)
                     vertices_to_clean.add(x1)
                     vertices_to_clean.add(v)
                     break
@@ -110,24 +117,30 @@ class SubgroupOfFreeGroup:
         def cycles_from(
             curr_word: "FreeGroupElement",
             vertex_sequence: List[Vertex],
-            last_edge: Optional[Edge],
+            edge_sequence: List[Edge],
         ) -> List["FreeGroupElement"]:
             cycles: List[FreeGroupElement] = []
             curr_vertex = vertex_sequence[-1]
             for next_vertex, edge in self.labeled_edge_graph.forward_edges[curr_vertex]:
-                if last_edge and edge == flip(last_edge):
+                if edge_sequence and edge_sequence[-1] == flip(edge):
                     continue
                 new_word = curr_word * value(edge)
                 if next_vertex in vertex_sequence:
-                    if next_vertex == vertex_sequence[0]:
-                        cycles.append(new_word)
-
+                    # Return in the same way we got to this vertex.
+                    i = vertex_sequence.index(next_vertex)
+                    cycle: FreeGroupElement = new_word.copy()
+                    if i > 0:
+                        for prev_edge in edge_sequence[i - 1 :: -1]:
+                            cycle *= value(flip(prev_edge))
+                    cycles.append(cycle)
                     continue
-                cycles += cycles_from(new_word, vertex_sequence + [next_vertex], edge)
+                cycles += cycles_from(
+                    new_word, vertex_sequence + [next_vertex], edge_sequence + [edge]
+                )
             return cycles
 
         cycles = cycles_from(
-            self.free_group.identity(), [self.free_group.identity()], None
+            self.free_group.identity(), [self.free_group.identity()], []
         )
         # This is almost what we need. Just need to remove invertions.
 
