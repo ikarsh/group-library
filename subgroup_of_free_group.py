@@ -242,11 +242,14 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
                 return False
         return True
 
-    def normalization(self) -> "SubgroupOfFreeGroup":
-        # This may run forever. Beware!
-        next_step = self.free_group.subgroup(
+    def _one_normalization_step(self) -> "SubgroupOfFreeGroup":
+        return self.free_group.subgroup(
             [gen.conjugate(a) for gen in self.gens() for a in self.free_group.gens()]
         )
+
+    def normalization(self) -> "SubgroupOfFreeGroup":
+        # This may run forever. Beware!
+        next_step = self._one_normalization_step()
 
         if self.equals_subgroup(next_step):
             return self

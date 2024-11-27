@@ -76,6 +76,12 @@ class FreeGroup:
 
         return SubgroupOfFreeGroup(self, relations)
 
+    def full_subgroup(self) -> "SubgroupOfFreeGroup":
+        return self.subgroup([gen for gen in self.gens()])
+
+    def empty_subgroup(self) -> "SubgroupOfFreeGroup":
+        return self.subgroup([])
+
     def join_subgroups(
         self, subgroups: Sequence["SubgroupOfFreeGroup"]
     ) -> "SubgroupOfFreeGroup":

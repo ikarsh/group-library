@@ -83,7 +83,8 @@ def test_subgroup_element_containement():
     x, y = (a**3 * b ** (-2) * a * b**2, a * b * a * b * a * b)
 
     # contains_element
-    assert F.subgroup([a, b]).contains_element(a)
+    assert F.full_subgroup().contains_element(a)
+    assert not F.empty_subgroup().contains_element(a)
     assert F.subgroup([x, y]).contains_element(x * y * x ** (-2) * y**3)
     assert not F.subgroup([a**2, b]).contains_element(a)
 
@@ -92,15 +93,17 @@ def test_normal_subgroup():
     F = FreeGroup(("a", "b"))
     a, b = F.gens()
 
-    assert F.subgroup([a, b]).is_normal()
-    assert F.subgroup([]).is_normal()
+    assert F.full_subgroup().is_normal()
+    assert F.empty_subgroup().is_normal()
     assert not F.subgroup([a]).is_normal()
     assert F.subgroup(
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
     ).is_normal()
 
-    N_S3 = F.subgroup([a**3, b**2, a.conjugate(b) * a]).normalization()
-    assert N_S3.is_normal()
+    H = F.subgroup([a**3, b**2, a.conjugate(b) * a])
+    assert not H.is_normal()
+    N = H.normalization()
+    assert N.is_normal() and N.contains_subgroup(H)
     reps: List[FreeGroupElement] = [
         a,
         b,
@@ -109,7 +112,7 @@ def test_normal_subgroup():
         a**2 * b,
     ]
     for elem in reps:
-        assert not N_S3.contains_element(elem)
+        assert not N.contains_element(elem)
 
 
 def test_all():
