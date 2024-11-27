@@ -1,5 +1,11 @@
 from typing import Dict, List, Optional, Set, Tuple
-from free_group import FreeGroup, FreeGroupElement, FreeGroupGenerator
+from free_group import (
+    FreeGroup,
+    FreeGroupElement,
+    FreeGroupGenerator,
+    FreeGroupTemplate,
+    verify,
+)
 
 
 class Vertex:
@@ -146,13 +152,12 @@ class _SubgroupGraph:
         ]
 
 
-class SubgroupOfFreeGroup:
+class SubgroupOfFreeGroup(FreeGroupTemplate):
     def __init__(self, free_group: FreeGroup, relations: List[FreeGroupElement]):
         for relation in relations:
             if relation.free_group != free_group:
                 raise ValueError(f"Relation {relation} not in free group {free_group}")
 
-        self.free_group = free_group
         self._graph = _SubgroupGraph(free_group)
         for relation in relations:
             self._graph.add_word(relation)
@@ -165,9 +170,12 @@ class SubgroupOfFreeGroup:
             for edge in self._special_edges
         }
 
+        super().__init__(free_group)
+
     def gens(self) -> List[FreeGroupElement]:
         return list(self._gens_from_edges.values())
 
+    @verify
     def express(
         self, elem: FreeGroupElement
     ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
@@ -205,3 +213,31 @@ class SubgroupOfFreeGroup:
         if vertex != self._graph.identity_vertex:
             return None
         return result
+
+    @verify
+    def contains_element(self, elem: FreeGroupElement) -> bool:
+        return self.express(elem) is not None
+
+    @verify
+    def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
+        for gen in other.gens():
+            if not self.contains_element(gen):
+                return False
+        return True
+
+    @verify
+    def equals_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
+        return self.contains_subgroup(other) and other.contains_subgroup(self)
+
+    @verify
+    def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup(
+            self.free_group,
+            [gen.conjugate(elem) for gen in self.gens()],
+        )
+
+    def is_normal(self) -> bool:
+        for gen in self.free_group.gens():
+            if not self.conjugate(gen).equals_subgroup(self):
+                return False
+        return True

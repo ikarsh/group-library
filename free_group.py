@@ -1,5 +1,15 @@
 import itertools
-from typing import TYPE_CHECKING, Any, Iterator, List, Literal, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterator,
+    List,
+    Literal,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
@@ -66,8 +76,38 @@ class FreeGroup:
 
         return SubgroupOfFreeGroup(self, relations)
 
+    def join_subgroups(
+        self, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        from subgroup_of_free_group import SubgroupOfFreeGroup
 
-class FreeGroupElement:
+        return SubgroupOfFreeGroup(
+            self, [gen for subgroup in subgroups for gen in subgroup.gens()]
+        )
+
+
+class FreeGroupTemplate:
+    def __init__(self, free_group: FreeGroup):
+        self.free_group = free_group
+
+
+A = TypeVar("A", bound=FreeGroupTemplate)
+B = TypeVar("B", bound=FreeGroupTemplate)
+C = TypeVar("C")
+
+
+def verify(f: Callable[[A, B], C]) -> Callable[[A, B], C]:
+    def wrapper(a: A, b: B):
+        if a.free_group != b.free_group:
+            raise ValueError(
+                f"Cannot operate on elements from different free groups: {a.free_group}, {b.free_group}"
+            )
+        return f(a, b)
+
+    return wrapper
+
+
+class FreeGroupElement(FreeGroupTemplate):
     # Words should always be reduced.
     # This is not enforced in the constructor, so it should not be called outside of this class.
     def __init__(self, free_group: FreeGroup, word: List[Tuple[_Letter, int]]):
@@ -75,8 +115,8 @@ class FreeGroupElement:
             if letter not in free_group.letters:
                 raise ValueError(f"{letter} not a generator of {free_group}")
 
-        self.free_group = free_group
         self.word = word
+        super().__init__(free_group)
 
     def __iter__(self) -> Iterator[Tuple["FreeGroupGenerator", int]]:
         return iter(
@@ -107,11 +147,8 @@ class FreeGroupElement:
             ]
         )
 
+    @verify
     def lexicographically_lt(self, other: "FreeGroupElement") -> bool:
-        if self.free_group != other.free_group:
-            raise ValueError(
-                f"Cannot compare elements from different free groups: {self.free_group}, {other.free_group}"
-            )
         n = min(len(self.word), len(other.word))
         for i in range(n):
             (let1, pow1), (let2, pow2) = self.word[i], other.word[i]
@@ -134,11 +171,8 @@ class FreeGroupElement:
         return len(self.word) < len(other.word)
 
     # This is measured by the length, then lexicographically by the generator names. `a` is smaller than `a^-1`.
+    @verify
     def __lt__(self, other: "FreeGroupElement") -> bool:
-        if self.free_group != other.free_group:
-            raise ValueError(
-                f"Cannot compare elements from different free groups: {self.free_group}, {other.free_group}"
-            )
         if self.length() == other.length():
             return self.lexicographically_lt(other)
         return self.length() < other.length()
@@ -181,17 +215,14 @@ class FreeGroupElement:
 
         return FreeGroupElement(free_group, word)
 
+    @verify
     def __mul__(self, other: "FreeGroupElement") -> "FreeGroupElement":
         res = self.copy()
         res *= other
         return res
 
+    @verify
     def __imul__(self, other: "FreeGroupElement") -> "FreeGroupElement":
-        if self.free_group != other.free_group:
-            raise ValueError(
-                f"Cannot multiply elements from different free groups: {self.free_group}, {other.free_group}"
-            )
-
         for let, pow in other.word:
             if self.word and self.word[-1][0] == let:
                 self.word[-1] = (let, self.word[-1][1] + pow)
@@ -218,11 +249,8 @@ class FreeGroupElement:
             else:
                 return half_power * half_power * self
 
+    @verify
     def conjugate(self, other: "FreeGroupElement") -> "FreeGroupElement":
-        if self.free_group != other.free_group:
-            raise ValueError(
-                f"Cannot conjugate elements from different free groups: {self.free_group}, {other.free_group}"
-            )
         return other * self * ~other
 
 
@@ -237,12 +265,9 @@ class FreeGroupGenerator(FreeGroupElement):
         return repr(self.letter)
 
 
+@verify
 def commutator(
     a: "FreeGroupElement",
     b: "FreeGroupElement",
 ) -> "FreeGroupElement":
-    if a.free_group != b.free_group:
-        raise ValueError(
-            f"Cannot compute commutator of elements from different free groups: {a.free_group}, {b.free_group}"
-        )
     return a * b * ~a * ~b
