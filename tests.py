@@ -42,6 +42,8 @@ def test_subgroup_of_free_group():
     lst: List[List[FreeGroupElement]] = [
         [a, b],
         [a, b ** (-10)],
+        [a * b, b * a],
+        [(a * b) ** 2, a],
         [(a * b) ** 3, b],
         [a**2, b**3, commutator(a, b)],
         [(a * b) ** 10, commutator(a, b) ** 3, b**1, b.conjugate(a)],
@@ -49,5 +51,16 @@ def test_subgroup_of_free_group():
     ]
 
     for gens in lst:
-        free_gens = F.subgroup(gens).gens()
+        H = F.subgroup(gens)
+        free_gens = H.gens()
         assert len(free_gens) <= len(gens)
+        for gen in gens:
+            word = H.express(gen)
+            assert word is not None
+            for g, _ in word:
+                assert g in free_gens
+
+            w = F.identity()
+            for g, n in word:
+                w *= g**n
+            assert w == gen

@@ -1,4 +1,4 @@
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set, Tuple
 from free_group import FreeGroup, FreeGroupElement, FreeGroupGenerator
 
 
@@ -92,8 +92,11 @@ class _SubgroupGraph:
             v0, v1 = glues.pop()
             if v0 == v1:
                 continue
+            if v0.elem < v1.elem:
+                v0, v1 = v1, v0
 
             for gen, edge in list(v0.forward_edges.items()):
+                assert edge.elem == gen
                 self.remove_edge(edge)
                 v1_next = v1.forward_edges.get(gen)
 
@@ -165,20 +168,40 @@ class SubgroupOfFreeGroup:
     def gens(self) -> List[FreeGroupElement]:
         return list(self._gens_from_edges.values())
 
-    # def express(
-    #     self, elem: FreeGroupElement
-    # ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
-    #     if elem.free_group != self.free_group:
-    #         raise ValueError(f"Element {elem} not in free group {self.free_group}")
-    #     res: List[Tuple[FreeGroupElement, int]] = []
-    #     vertex = self._identity_vertex
-    #     for let, pow in elem:
-    #         for edge, next_vertex in self._subgroup_graph.forward_edges[vertex]:
-    #             if edge.letter == let and edge.sign == sign(pow):
+    def express(
+        self, elem: FreeGroupElement
+    ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
+        vertex = self._graph.identity_vertex
+        result: List[Tuple[FreeGroupElement, int]] = []
+        for gen, pow in elem:
+            sign = 1 if pow > 0 else -1
+            if sign == 1:
+                for _ in range(pow):
+                    edge = vertex.forward_edges.get(gen)
+                    if edge is None:
+                        return None
+                    if edge in self._special_edges:
+                        new_gen = self._gens_from_edges[edge]
+                        if result and result[-1][0] == new_gen:
+                            result[-1] = (new_gen, result[-1][1] + 1)
+                        else:
+                            result.append((self._gens_from_edges[edge], 1))
+                    vertex = edge.target
+            else:
+                for _ in range(-pow):
+                    edge = vertex.backward_edges.get(gen)
+                    if edge is None:
+                        return None
+                    if edge in self._special_edges:
+                        new_gen = self._gens_from_edges[edge]
+                        if result and result[-1][0] == new_gen:
+                            result[-1] = (new_gen, result[-1][1] - 1)
+                        else:
+                            result.append((self._gens_from_edges[edge], -1))
+                    vertex = edge.source
+                if result and result[-1][1] == 0:
+                    result.pop()
 
-    #                 res.append((edge, pow))
-    #                 vertex = next_vertex
-    #                 break
-    #         else
-
-    # return res
+        if vertex != self._graph.identity_vertex:
+            return None
+        return result
