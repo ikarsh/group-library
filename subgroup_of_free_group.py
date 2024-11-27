@@ -80,12 +80,15 @@ class SubgroupOfFreeGroup:
                 raise ValueError(f"Relation {relation} not in free group {free_group}")
 
         self.free_group = free_group
-        self.setup_graph(relations)
-        self.reduce_graph()
-        self.create_spanning_tree()
-        self.free_gens = self.gens_from_graph()
+        self._setup_graph(relations)
+        self._reduce_graph()
+        self._create_spanning_tree()
+        self.free_gens = self._compute_gens_from_graph()
 
-    def setup_graph(self, relations: List[FreeGroupElement]):
+    def gens(self) -> List[FreeGroupElement]:
+        return self.free_gens
+
+    def _setup_graph(self, relations: List[FreeGroupElement]):
         self.identity_vertex = Vertex(self.free_group, self.free_group.identity())
         self.labeled_edge_graph = LabeledEdgeGraph(self.free_group)
         self.labeled_edge_graph.add_vertex(self.identity_vertex)
@@ -106,7 +109,7 @@ class SubgroupOfFreeGroup:
             assert curr_vertex.elem == relation
             self.labeled_edge_graph.join_vertices(self.identity_vertex, curr_vertex)
 
-    def reduce_graph(self):
+    def _reduce_graph(self):
         vertices_to_clean = self.labeled_edge_graph.vertices.copy()
         while vertices_to_clean:
             v = vertices_to_clean.pop()
@@ -125,7 +128,7 @@ class SubgroupOfFreeGroup:
                         vertices_to_clean.remove(x2)
                     break
 
-    def create_spanning_tree(self):
+    def _create_spanning_tree(self):
         # What this function actually does is give every vertex a minimal representative.
         # Minimality is taken with respect to length and then lexicographically.
         # This ensures a spanning tree is created.
@@ -138,7 +141,7 @@ class SubgroupOfFreeGroup:
                     x.elem = v.elem * e
                     vertices_to_clean.add(x)
 
-    def gens_from_graph(self) -> List["FreeGroupElement"]:
+    def _compute_gens_from_graph(self) -> List["FreeGroupElement"]:
         gens: List[FreeGroupElement] = []
         for v0, v0_edges in self.labeled_edge_graph.forward_edges.items():
             for edge, v1 in v0_edges:
@@ -149,39 +152,3 @@ class SubgroupOfFreeGroup:
                     continue
                 gens.append(gen)
         return gens
-        # def cycles_from(
-        #     curr_word: "FreeGroupElement",
-        #     vertex_sequence: List[Vertex],
-        #     edge_sequence: List[Edge],
-        # ) -> List["FreeGroupElement"]:
-        #     cycles: List[FreeGroupElement] = []
-        #     curr_vertex = vertex_sequence[-1]
-        #     for next_vertex, edge in self.labeled_edge_graph.forward_edges[curr_vertex]:
-        #         if edge_sequence and edge_sequence[-1] == ~edge:
-        #             continue
-        #         new_word = curr_word * edge
-        #         if next_vertex in vertex_sequence:
-        #             # Return in the same way we got to this vertex.
-        #             i = vertex_sequence.index(next_vertex)
-        #             cycle: FreeGroupElement = new_word.copy()
-        #             if i > 0:
-        #                 for prev_edge in edge_sequence[i - 1 :: -1]:
-        #                     cycle *= ~prev_edge
-        #             cycles.append(cycle)
-        #             continue
-        #         cycles += cycles_from(
-        #             new_word, vertex_sequence + [next_vertex], edge_sequence + [edge]
-        #         )
-        #     return cycles
-
-        # cycles = cycles_from(
-        #     self.free_group.identity(), [self.free_group.identity()], []
-        # )
-        # # This is almost what we need. Just need to remove invertions.
-
-        # gens: List[FreeGroupElement] = []
-        # for cycle in cycles:
-        #     if cycle in gens or ~cycle in gens:
-        #         continue
-        #     gens.append(cycle)
-        # return gens
