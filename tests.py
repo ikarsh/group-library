@@ -49,5 +49,5 @@ def test_subgroup_of_free_group():
     ]
 
     for gens in lst:
-        free_gens = F.subgroup(gens).free_gens
+        free_gens = F.subgroup(gens).gens()
         assert len(free_gens) <= len(gens)

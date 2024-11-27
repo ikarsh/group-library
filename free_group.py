@@ -13,7 +13,7 @@ def sign(n: int) -> Literal[-1, 1]:
     raise ValueError(f"Sign of 0 is undefined")
 
 
-class Letter:
+class _Letter:
     def __init__(self, name: str):
         if not (name and name[0].isalpha() and name.isalnum()):
             raise ValueError(f"Invalid generator name: {name}")
@@ -23,7 +23,7 @@ class Letter:
         return hash((self.name))
 
     def __eq__(self, value: object) -> bool:
-        return isinstance(value, Letter) and self.name == value.name
+        return isinstance(value, _Letter) and self.name == value.name
 
     def __repr__(self):
         return self.name
@@ -31,7 +31,7 @@ class Letter:
 
 class FreeGroup:
     def __init__(self, _letters: Tuple[str, ...]):
-        letters = tuple(Letter(_letter) for _letter in _letters)
+        letters = tuple(_Letter(_letter) for _letter in _letters)
         for letter0, letter1 in itertools.combinations(letters, 2):
             if letter0.name.startswith(letter1.name) or letter1.name.startswith(
                 letter0.name
@@ -70,7 +70,7 @@ class FreeGroup:
 class FreeGroupElement:
     # Words should always be reduced.
     # This is not enforced in the constructor, so it should not be called outside of this class.
-    def __init__(self, free_group: FreeGroup, word: List[Tuple[Letter, int]]):
+    def __init__(self, free_group: FreeGroup, word: List[Tuple[_Letter, int]]):
         for letter, _power in word:
             if letter not in free_group.letters:
                 raise ValueError(f"{letter} not a generator of {free_group}")
@@ -78,8 +78,10 @@ class FreeGroupElement:
         self.free_group = free_group
         self.word = word
 
-    def __iter__(self) -> Iterator[Tuple[Letter, int]]:
-        return iter(self.word)
+    def __iter__(self) -> Iterator[Tuple["FreeGroupGenerator", int]]:
+        return iter(
+            (FreeGroupGenerator(self.free_group, let), pow) for let, pow in self.word
+        )
 
     def __hash__(self) -> int:
         return hash((self.free_group, tuple(self.word)))
@@ -146,7 +148,7 @@ class FreeGroupElement:
 
     @classmethod
     def from_str(cls, free_group: FreeGroup, s_: str) -> "FreeGroupElement":
-        word: List[Tuple[Letter, int]] = []
+        word: List[Tuple[_Letter, int]] = []
         s = s_.replace(" ", "")
         while s:
             for let in free_group.letters:
@@ -201,7 +203,7 @@ class FreeGroupElement:
 
     def __invert__(self) -> "FreeGroupElement":
         return FreeGroupElement(
-            self.free_group, [(gen, -power) for (gen, power) in self.word[::-1]]
+            self.free_group, [(let, -power) for (let, power) in self.word[::-1]]
         )
 
     def __pow__(self, n: int) -> "FreeGroupElement":
@@ -225,7 +227,7 @@ class FreeGroupElement:
 
 
 class FreeGroupGenerator(FreeGroupElement):
-    def __init__(self, free_group: FreeGroup, letter: Letter):
+    def __init__(self, free_group: FreeGroup, letter: _Letter):
         if not letter in free_group.letters:
             raise ValueError(f"Generator {letter} not in free group {free_group}")
         self.letter = letter
