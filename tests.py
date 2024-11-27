@@ -1,4 +1,5 @@
-from free_group import FreeGroup, commutator
+from typing import List
+from free_group import FreeGroup, FreeGroupElement, commutator
 
 
 def test_free_group():
@@ -17,24 +18,33 @@ def test_free_group():
     assert x**5 == x * x * x * x * x
 
     assert x.conjugate(y) == y * x * ~y
-    assert (x * y).conjugate(z) == x.conjugate(z) * y.conjugate(z)
     assert x.conjugate(e) == x
+    assert e.conjugate(x) == e
+    assert (x * y).conjugate(z) == x.conjugate(z) * y.conjugate(z)
     assert x.conjugate(y * z) == x.conjugate(z).conjugate(y)
 
-    assert commutator(x, y) == x * y * ~x * ~y
-    assert commutator(x, y) == ~commutator(y, x)
-    assert commutator(x * y, z) == commutator(x, commutator(y, z)) * commutator(
-        y, z
-    ) * commutator(x, z)
+    c = commutator
+    assert c(x, y) == x * y * ~x * ~y
+    assert c(x, y) == ~c(y, x)
+    assert c(x * y, z) == c(x, c(y, z)) * c(y, z) * c(x, z)
+    assert (
+        c(z.conjugate(y), c(x, y))
+        * c(y.conjugate(x), c(z, x))
+        * c(x.conjugate(z), c(y, z))
+        == e
+    )  # Jacobi identity
 
 
 def test_subgroup_of_free_group():
     F = FreeGroup(("a", "b"))
     a, b = F.gens()
 
-    lst = [
-        [(a * b) ** 10, commutator(a, b) ** 3, b**1, b.conjugate(a)],
+    lst: List[List[FreeGroupElement]] = [
+        [a, b],
+        [a, b ** (-10)],
+        [(a * b) ** 3, b],
         [a**2, b**3, commutator(a, b)],
+        [(a * b) ** 10, commutator(a, b) ** 3, b**1, b.conjugate(a)],
         [a**2 * b**3 * a ** (-2), b**3, commutator(a, b.conjugate(a**5))],
     ]
 

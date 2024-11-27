@@ -45,7 +45,7 @@ class FreeGroup:
         return tuple(FreeGroupGenerator(self, letter) for letter in self.letters)
 
     def __repr__(self):
-        return f"FreeGroup({self.letters})"
+        return f"Free Group over {', '.join(repr(letter) for letter in self.letters)}"
 
     def __hash__(self):
         return hash((self.letters))
@@ -82,7 +82,7 @@ class FreeGroupElement:
         return iter(self.word)
 
     def __hash__(self) -> int:
-        return hash((self.free_group, self.word))
+        return hash((self.free_group, tuple(self.word)))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, FreeGroupElement):
@@ -105,8 +105,7 @@ class FreeGroupElement:
             ]
         )
 
-    # Lexicographical order
-    def __le__(self, other: "FreeGroupElement") -> bool:
+    def lexicographically_lt(self, other: "FreeGroupElement") -> bool:
         if self.free_group != other.free_group:
             raise ValueError(
                 f"Cannot compare elements from different free groups: {self.free_group}, {other.free_group}"
@@ -118,7 +117,7 @@ class FreeGroupElement:
                 if pow1 == pow2:
                     continue
                 if sign(pow1) != sign(pow2):
-                    return pow1 > 0 and pow2 < 0  # We prefer `a` over `a^-1`
+                    return pow1 > 0 and pow2 < 0  # `a` < `a^-1`
                 pow1, pow2 = abs(pow1), abs(pow2)
 
                 if pow2 < pow1:
@@ -130,7 +129,17 @@ class FreeGroupElement:
                         return True
                     return self.word[i][0].name <= let2.name
             return let1.name <= let2.name
-        return len(self.word) <= len(other.word)
+        return len(self.word) < len(other.word)
+
+    # This is measured by the length, then lexicographically by the generator names. `a` is smaller than `a^-1`.
+    def __lt__(self, other: "FreeGroupElement") -> bool:
+        if self.free_group != other.free_group:
+            raise ValueError(
+                f"Cannot compare elements from different free groups: {self.free_group}, {other.free_group}"
+            )
+        if self.length() == other.length():
+            return self.lexicographically_lt(other)
+        return self.length() < other.length()
 
     def is_identity(self) -> bool:
         return not self.word
