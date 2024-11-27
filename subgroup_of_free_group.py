@@ -241,3 +241,14 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
             if not self.conjugate(gen).equals_subgroup(self):
                 return False
         return True
+
+    def normalization(self) -> "SubgroupOfFreeGroup":
+        # This may run forever. Beware!
+        next_step = self.free_group.subgroup(
+            [gen.conjugate(a) for gen in self.gens() for a in self.free_group.gens()]
+        )
+
+        if self.equals_subgroup(next_step):
+            return self
+
+        return next_step.normalization()
