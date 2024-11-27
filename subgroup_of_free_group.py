@@ -1,24 +1,22 @@
 import itertools
 from typing import Dict, List, Literal, Set, Tuple
-from free_group import FreeGroup, FreeGroupElement, FreeGroupGenerator
+from free_group import FreeGroup, FreeGroupElement, Letter
+
+
+class SignedGenerator(FreeGroupElement):
+    def __init__(self, free_group: FreeGroup, letter: Letter, sign: Literal[-1, 1]):
+        self.letter = letter
+        self.sign = sign
+        super().__init__(free_group, [(letter, sign)])
+
+    def __invert__(self) -> "SignedGenerator":
+        msgn = -self.sign
+        assert msgn in (-1, 1)
+        return SignedGenerator(self.free_group, self.letter, msgn)
 
 
 Vertex = FreeGroupElement
-Edge = Tuple[FreeGroupGenerator, Literal[-1, 1]]
-
-
-def flip(x: Edge) -> Edge:
-    a, n = x
-    return a, -n
-
-
-def value(x: Edge) -> "FreeGroupElement":
-    a, n = x
-    if n == 1:
-        return a.as_group_element()
-    elif n == -1:
-        return ~a
-    assert False
+Edge = SignedGenerator
 
 
 class LabeledEdgeGraph:
@@ -38,7 +36,7 @@ class LabeledEdgeGraph:
         if (
             v0.free_group != self.free_group
             or v1.free_group != self.free_group
-            or e[0].free_group != self.free_group
+            or e.free_group != self.free_group
         ):
             raise ValueError(
                 f"Edge {v0} --{e}--> {v1} not in free group {self.free_group}"
@@ -48,7 +46,7 @@ class LabeledEdgeGraph:
         if v1 not in self.vertices:
             raise ValueError(f"Vertex {v1} not in graph")
         self.forward_edges[v0].add((v1, e))
-        self.forward_edges[v1].add((v0, flip(e)))
+        self.forward_edges[v1].add((v0, ~e))
 
     def join_vertices(self, v0: Vertex, v1: Vertex) -> None:
         if v0 not in self.vertices:
@@ -62,7 +60,7 @@ class LabeledEdgeGraph:
                 self.add_edge(v0, v0, e)
             else:
                 self.add_edge(v0, v, e)
-                self.forward_edges[v].remove((v1, flip(e)))
+                self.forward_edges[v].remove((v1, ~e))
         self.vertices.remove(v1)
         del self.forward_edges[v1]
 
@@ -83,17 +81,17 @@ class SubgroupOfFreeGroup:
         self.labeled_edge_graph.add_vertex(self.free_group.identity())
         for relation in relations:
             relation_sequence: List[Edge] = []
-            for gen, pow in relation.reduce():
+            for gen, pow in relation:
                 assert pow != 0
                 sign = 1 if pow > 0 else -1
-                for _ in range(abs(pow)):
-                    relation_sequence.append((gen, sign))
+                edge = SignedGenerator(self.free_group, gen, sign)
+                relation_sequence += [edge] * abs(pow)
 
             curr_elem = self.free_group.identity()
-            for sgen in relation_sequence:
-                next_elem = curr_elem * value(sgen)
+            for edge in relation_sequence:
+                next_elem = curr_elem * edge
                 self.labeled_edge_graph.add_vertex(next_elem)
-                self.labeled_edge_graph.add_edge(curr_elem, next_elem, sgen)
+                self.labeled_edge_graph.add_edge(curr_elem, next_elem, edge)
                 curr_elem = next_elem
             assert curr_elem == relation
             self.labeled_edge_graph.join_vertices(self.free_group.identity(), curr_elem)
@@ -106,11 +104,15 @@ class SubgroupOfFreeGroup:
                 self.labeled_edge_graph.forward_edges[v], 2
             ):
                 if e1 == e2:
+                    if (
+                        x2.length() < x1.length()
+                    ):  # Pick the shorter one to be the new representative.
+                        x1, x2 = x2, x1
                     self.labeled_edge_graph.join_vertices(x1, x2)
-                    if x2 in vertices_to_clean:
-                        vertices_to_clean.remove(x2)
                     vertices_to_clean.add(x1)
                     vertices_to_clean.add(v)
+                    if x2 in vertices_to_clean:
+                        vertices_to_clean.remove(x2)
                     break
 
     def gens_from_graph(self) -> List["FreeGroupElement"]:
@@ -122,16 +124,16 @@ class SubgroupOfFreeGroup:
             cycles: List[FreeGroupElement] = []
             curr_vertex = vertex_sequence[-1]
             for next_vertex, edge in self.labeled_edge_graph.forward_edges[curr_vertex]:
-                if edge_sequence and edge_sequence[-1] == flip(edge):
+                if edge_sequence and edge_sequence[-1] == ~edge:
                     continue
-                new_word = curr_word * value(edge)
+                new_word = curr_word * edge
                 if next_vertex in vertex_sequence:
                     # Return in the same way we got to this vertex.
                     i = vertex_sequence.index(next_vertex)
                     cycle: FreeGroupElement = new_word.copy()
                     if i > 0:
                         for prev_edge in edge_sequence[i - 1 :: -1]:
-                            cycle *= value(flip(prev_edge))
+                            cycle *= ~prev_edge
                     cycles.append(cycle)
                     continue
                 cycles += cycles_from(

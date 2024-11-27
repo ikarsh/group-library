@@ -1,109 +1,96 @@
 import itertools
-from typing import TYPE_CHECKING, Any, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Iterator, List, Literal, Sequence, Tuple
 
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
-class FreeGroup:
-    def __init__(self, gen_names: Tuple[str, ...], name: Optional[str] = None):
-        gens = tuple(FreeGroupGenerator(self, gen_name) for gen_name in gen_names)
-        for gen0, gen1 in itertools.combinations(gens, 2):
-            if gen0.name.startswith(gen1.name) or gen1.name.startswith(gen0.name):
-                raise ValueError(
-                    f"Generators cannot be prefixes of each other: {gen0}, {gen1}"
-                )
-        self.gen_names = gen_names
-        self.gens = gens
+def sign(n: int) -> Literal[-1, 1]:
+    if n < 0:
+        return -1
+    if n > 0:
+        return 1
+    raise ValueError(f"Sign of 0 is undefined")
+
+
+class Letter:
+    def __init__(self, name: str):
+        if not (name and name[0].isalpha() and name.isalnum()):
+            raise ValueError(f"Invalid generator name: {name}")
         self.name = name
 
+    def __hash__(self):
+        return hash((self.name))
+
+    def __eq__(self, value: object) -> bool:
+        return isinstance(value, Letter) and self.name == value.name
+
     def __repr__(self):
-        return f"FreeGroup({self.gens})" if self.name is None else self.name
+        return self.name
+
+
+class FreeGroup:
+    def __init__(self, _letters: Tuple[str, ...]):
+        letters = tuple(Letter(_letter) for _letter in _letters)
+        for letter0, letter1 in itertools.combinations(letters, 2):
+            if letter0.name.startswith(letter1.name) or letter1.name.startswith(
+                letter0.name
+            ):
+                raise ValueError(
+                    f"Generators cannot be prefixes of each other: {letter0}, {letter1}"
+                )
+        self.letters = letters
+
+    def gens(self) -> Tuple["FreeGroupGenerator", ...]:
+        return tuple(FreeGroupGenerator(self, letter) for letter in self.letters)
+
+    def __repr__(self):
+        return f"FreeGroup({self.letters})"
 
     def __hash__(self):
-        return hash((self.name, self.gen_names))
+        return hash((self.letters))
 
     def identity(self):
         return FreeGroupElement(self, [])
 
     def subgroup(
-        self, relations_: List["FreeGroupGenerator | FreeGroupElement | str"]
+        self, relations_: Sequence["FreeGroupElement | str"]
     ) -> "SubgroupOfFreeGroup":
         from subgroup_of_free_group import SubgroupOfFreeGroup
 
         relations: List["FreeGroupElement"] = []
         for relation in relations_:
-            if isinstance(relation, FreeGroupGenerator):
-                relation = relation.as_group_element()
-            elif isinstance(relation, str):
+            if isinstance(relation, str):
                 relation = FreeGroupElement.from_str(self, relation)
-            assert isinstance(relation, FreeGroupElement)
             relations.append(relation)
 
         return SubgroupOfFreeGroup(self, relations)
 
 
-class FreeGroupGenerator:
-    def __init__(self, free_group: FreeGroup, name: str):
-        if not (name and name[0].isalpha() and name.isalnum()):
-            raise ValueError(f"Invalid generator name: {name}")
-        self.free_group = free_group
-        self.name = name
-
-    def __hash__(self):
-        return hash((self.free_group, self.name))
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, FreeGroupGenerator):
-            return super().__eq__(other)
-        return self.as_group_element() == other
-
-    def __repr__(self):
-        return self.name
-
-    def as_group_element(self):
-        return FreeGroupElement(self.free_group, [(self, 1)])
-
-    def __invert__(self) -> "FreeGroupElement":
-        return ~self.as_group_element()
-
-    def __mul__(
-        self, other: "FreeGroupGenerator | FreeGroupElement"
-    ) -> "FreeGroupElement":
-        return self.as_group_element() * other
-
-    def __pow__(self, n: int) -> "FreeGroupElement":
-        return self.as_group_element() ** n
-
-    def conjugate(
-        self, other: "FreeGroupGenerator | FreeGroupElement"
-    ) -> "FreeGroupElement":
-        return self.as_group_element().conjugate(other)
-
-
 class FreeGroupElement:
-    def __init__(
-        self, free_group: FreeGroup, word: List[Tuple[FreeGroupGenerator, int]]
-    ):
-        for gen, _power in word:
-            if gen not in free_group.gens:
-                raise ValueError(f"Generator {gen} not in free group {free_group}")
+    # Words should always be reduced.
+    # This is not enforced in the constructor, so it should not be called outside of this class.
+    def __init__(self, free_group: FreeGroup, word: List[Tuple[Letter, int]]):
+        for letter, _power in word:
+            if letter not in free_group.letters:
+                raise ValueError(f"{letter} not a generator of {free_group}")
 
         self.free_group = free_group
         self.word = word
 
-    def __iter__(self) -> Iterator[Tuple[FreeGroupGenerator, int]]:
+    def __iter__(self) -> Iterator[Tuple[Letter, int]]:
         return iter(self.word)
 
     def __hash__(self) -> int:
-        return hash((self.free_group, tuple(self.reduce().word)))
+        return hash((self.free_group, self.word))
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, FreeGroupGenerator):
-            other = other.as_group_element()
         if not isinstance(other, FreeGroupElement):
             return False
         return self.free_group == other.free_group and self.word == other.word
+
+    def length(self) -> int:
+        return sum((abs(power) for (_let, power) in self.word))
 
     def copy(self) -> "FreeGroupElement":
         return FreeGroupElement(self.free_group, self.word.copy())
@@ -113,22 +100,49 @@ class FreeGroupElement:
             return "identity"
         return "".join(
             [
-                gen.name + ("^" + str(power) if power != 1 else "")
-                for (gen, power) in self.word
+                let.name + ("^" + str(pow) if pow != 1 else "")
+                for (let, pow) in self.word
             ]
         )
+
+    # Lexicographical order
+    def __le__(self, other: "FreeGroupElement") -> bool:
+        if self.free_group != other.free_group:
+            raise ValueError(
+                f"Cannot compare elements from different free groups: {self.free_group}, {other.free_group}"
+            )
+        n = min(len(self.word), len(other.word))
+        for i in range(n):
+            (let1, pow1), (let2, pow2) = self.word[i], other.word[i]
+            if let1 == let2:
+                if pow1 == pow2:
+                    continue
+                if sign(pow1) != sign(pow2):
+                    return pow1 > 0 and pow2 < 0  # We prefer `a` over `a^-1`
+                pow1, pow2 = abs(pow1), abs(pow2)
+
+                if pow2 < pow1:
+                    if len(other.word) == i:
+                        return False
+                    return let1.name <= other.word[i][0].name
+                else:
+                    if len(self.word) == i:
+                        return True
+                    return self.word[i][0].name <= let2.name
+            return let1.name <= let2.name
+        return len(self.word) <= len(other.word)
 
     def is_identity(self) -> bool:
         return not self.word
 
     @classmethod
     def from_str(cls, free_group: FreeGroup, s_: str) -> "FreeGroupElement":
-        word: List[Tuple[FreeGroupGenerator, int]] = []
+        word: List[Tuple[Letter, int]] = []
         s = s_.replace(" ", "")
         while s:
-            for gen in free_group.gens:
-                if s.startswith(gen.name):
-                    s = s[len(gen.name) :]
+            for let in free_group.letters:
+                if s.startswith(let.name):
+                    s = s[len(let.name) :]
                     if s.startswith("^"):
                         s = s[1:]
                         power = 0
@@ -145,64 +159,35 @@ class FreeGroupElement:
                     else:
                         power = 1
 
-                    word.append((gen, power))
+                    if word and word[-1][0] == let:
+                        raise ValueError(f"{s_} was given in non-reduced form.")
+                    assert power != 0
+
+                    word.append((let, power))
                     break
             else:
                 raise ValueError(f"Invalid generator in {s_}")
 
-        return FreeGroupElement(free_group, word).reduce()
+        return FreeGroupElement(free_group, word)
 
-    def reduce(self) -> "FreeGroupElement":
-        word: List[Tuple[FreeGroupGenerator, int]] = []
-        for gen, power in self.word:
-            if word and word[-1][0] == gen:
-                word[-1] = (gen, word[-1][1] + power)
-            else:
-                word.append((gen, power))
-            if word and word[-1][1] == 0:
-                word.pop()
-        return FreeGroupElement(self.free_group, word)
+    def __mul__(self, other: "FreeGroupElement") -> "FreeGroupElement":
+        res = self.copy()
+        res *= other
+        return res
 
-    def __mul__(
-        self, other: "FreeGroupGenerator | FreeGroupElement"
-    ) -> "FreeGroupElement":
-        if isinstance(other, FreeGroupGenerator):
-            other = other.as_group_element()
-        assert isinstance(other, FreeGroupElement)
+    def __imul__(self, other: "FreeGroupElement") -> "FreeGroupElement":
         if self.free_group != other.free_group:
             raise ValueError(
                 f"Cannot multiply elements from different free groups: {self.free_group}, {other.free_group}"
             )
-        word = self.word.copy()
-        # Reduction
-        for gen, power in other.word:
-            if word and word[-1][0] == gen:
-                word[-1] = (gen, word[-1][1] + power)
-                if word[-1][1] == 0:
-                    word.pop()
-            else:
-                word.append((gen, power))
-        return FreeGroupElement(self.free_group, word)
 
-    def __imul__(
-        self, other: "FreeGroupGenerator | FreeGroupElement"
-    ) -> "FreeGroupElement":
-        if isinstance(other, FreeGroupGenerator):
-            other = other.as_group_element()
-        assert isinstance(other, FreeGroupElement)
-        if self.free_group != other.free_group:
-            raise ValueError(
-                f"Cannot multiply elements from different free groups: {self.free_group}, {other.free_group}"
-            )
-        assert isinstance(other, FreeGroupElement)
-
-        for gen, power in other.word:
-            if self.word and self.word[-1][0] == gen:
-                self.word[-1] = (gen, self.word[-1][1] + power)
+        for let, pow in other.word:
+            if self.word and self.word[-1][0] == let:
+                self.word[-1] = (let, self.word[-1][1] + pow)
                 if self.word[-1][1] == 0:
                     self.word.pop()
             else:
-                self.word.append((gen, power))
+                self.word.append((let, pow))
         return self
 
     def __invert__(self) -> "FreeGroupElement":
@@ -216,19 +201,13 @@ class FreeGroupElement:
         elif n < 0:
             return ~(self**-n)
         else:
-            half = n // 2
-            half_power = self**half
+            half_power = self ** (n // 2)
             if n % 2 == 0:
                 return half_power * half_power
             else:
                 return half_power * half_power * self
 
-    def conjugate(
-        self, other: "FreeGroupGenerator | FreeGroupElement"
-    ) -> "FreeGroupElement":
-        if isinstance(other, FreeGroupGenerator):
-            other = other.as_group_element()
-        assert isinstance(other, FreeGroupElement)
+    def conjugate(self, other: "FreeGroupElement") -> "FreeGroupElement":
         if self.free_group != other.free_group:
             raise ValueError(
                 f"Cannot conjugate elements from different free groups: {self.free_group}, {other.free_group}"
@@ -236,15 +215,21 @@ class FreeGroupElement:
         return other * self * ~other
 
 
+class FreeGroupGenerator(FreeGroupElement):
+    def __init__(self, free_group: FreeGroup, letter: Letter):
+        if not letter in free_group.letters:
+            raise ValueError(f"Generator {letter} not in free group {free_group}")
+        self.letter = letter
+        super().__init__(free_group, [(letter, 1)])
+
+    def __repr__(self):
+        return repr(self.letter)
+
+
 def commutator(
-    a: "FreeGroupGenerator | FreeGroupElement",
-    b: "FreeGroupGenerator | FreeGroupElement",
+    a: "FreeGroupElement",
+    b: "FreeGroupElement",
 ) -> "FreeGroupElement":
-    if isinstance(a, FreeGroupGenerator):
-        a = a.as_group_element()
-    if isinstance(b, FreeGroupGenerator):
-        b = b.as_group_element()
-    assert isinstance(a, FreeGroupElement) and isinstance(b, FreeGroupElement)
     if a.free_group != b.free_group:
         raise ValueError(
             f"Cannot compute commutator of elements from different free groups: {a.free_group}, {b.free_group}"
