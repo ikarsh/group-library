@@ -3,7 +3,6 @@ from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
-    FreeGroupTemplate,
 )
 
 
@@ -255,11 +254,11 @@ class _SubgroupGraph:
         return len(self._vertices)
 
 
-class SubgroupOfFreeGroup(FreeGroupTemplate):
+class SubgroupOfFreeGroup:
     def __init__(self, free_group: FreeGroup):
         self._graph = _SubgroupGraph(free_group)
         self.reset_cache()
-        super().__init__(free_group)
+        self.free_group = free_group
 
     def reset_cache(self):
         # These are the edges outside of the spanning tree. They correspond to the generators.

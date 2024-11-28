@@ -283,27 +283,6 @@ class FreeGroup:
         )
 
 
-class FreeGroupTemplate:
-    def __init__(self, free_group: FreeGroup):
-        self.free_group = free_group
-
-
-# A = TypeVar("A", bound=FreeGroupTemplate)
-# B = TypeVar("B", bound=FreeGroupTemplate)
-# C = TypeVar("C")
-
-
-# def verify(f: Callable[[A, B], C]) -> Callable[[A, B], C]:
-#     def wrapper(a: A, b: B):
-#         if a.free_group != b.free_group:
-#             raise ValueError(
-#                 f"Cannot operate on elements from different free groups: {a.free_group}, {b.free_group}"
-#             )
-#         return f(a, b)
-
-#     return wrapper
-
-
 @total_ordering
 class FreeGroupElement(Word):
     def __init__(self, free_group: FreeGroup):
