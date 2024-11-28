@@ -202,6 +202,9 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
     def gens(self) -> List[FreeGroupElement]:
         return list(self._gens_from_edges.values())
 
+    def coset_representatives(self) -> List[FreeGroupElement]:
+        return [v.elem for v in self._graph.vertices]
+
     @verify
     def express(
         self, elem: FreeGroupElement

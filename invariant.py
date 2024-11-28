@@ -14,16 +14,36 @@ def invariant(H: SubgroupOfFreeGroup):
 
 
 def verify_invariant(H: SubgroupOfFreeGroup, steps: int = 1):
-    n = H.free_group.rank()
+    N = H.normalization()
+    n = N.free_group.rank()
     F = FreeGroup(n + steps)
-    gens = F.gens()
+    F_gens = F.gens()
+    old_gens, new_gens = F_gens[:n], F_gens[n:]
+
     relations: List[FreeGroupElement] = []
-    for g in H.gens():
-        relations.append(g.substitute(F, gens[:n]))
-    for gen in gens[n:]:
+    for g in N.gens():
+        relations.append(g.substitute(F, old_gens))
+    for gen in new_gens:
         relations.append(gen)
 
     new_H = F.subgroup(relations)
+
+    for gen in new_gens:
+        for gi in N.coset_representatives():
+            if gi.is_identity():
+                assert gen in relations
+                continue
+            gi = gi.substitute(F, old_gens)
+            relations.append(gi * gen * ~gi)
+
+    new_N = F.subgroup(relations)
+    assert (
+        new_N.is_normal()
+        and new_N.contains_subgroup(new_H)
+        and new_N.equals_subgroup(new_H.normalization())
+        and new_N.rank() == N.rank() + steps * N.index()
+    )
+    assert new_H.normalization().rank() == new_N.rank()
     assert invariant(new_H) == invariant(H)
 
 
