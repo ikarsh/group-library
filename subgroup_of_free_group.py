@@ -145,10 +145,12 @@ class _SubgroupGraph:
 
             self.remove_vertex(v0)
             for pair in list(glues):
-                if v0 in pair:
+                if pair[0] == pair[1]:
+                    glues.remove(pair)
+                elif v0 in pair:
                     glues.remove(pair)
                     other = pair[1 - pair.index(v0)]
-                    glues.add((v1, other))
+                    glues.add((other, v1))
 
     def relabel(self):
         # What this function actually does is give every vertex a minimal representative.
