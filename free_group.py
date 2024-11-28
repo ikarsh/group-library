@@ -41,7 +41,12 @@ class _Letter:
 
 
 class FreeGroup:
-    def __init__(self, _letters: Tuple[str, ...], name: Optional[str] = None):
+    def __init__(self, _letters: Tuple[str, ...] | int, name: Optional[str] = None):
+        if isinstance(_letters, int):
+            if _letters <= 26:
+                _letters = tuple(chr(ord("a") + i) for i in range(_letters))
+            else:
+                raise NotImplementedError("Too many generators")
         letters = tuple(_Letter(_letter) for _letter in _letters)
         for letter0, letter1 in itertools.combinations(letters, 2):
             if letter0.name.startswith(letter1.name) or letter1.name.startswith(
