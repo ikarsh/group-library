@@ -110,6 +110,9 @@ class FreeGroup:
             relations.append(relation)
 
         return SubgroupOfFreeGroup(self, relations)
+    
+    def normal_subgroup(self, relations: Sequence["FreeGroupElement | str"]) -> "SubgroupOfFreeGroup":
+        return self.subgroup(relations).normalization()
 
     def full_subgroup(self) -> "SubgroupOfFreeGroup":
         return self.subgroup([gen for gen in self.gens()])

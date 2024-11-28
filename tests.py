@@ -1,6 +1,9 @@
 import itertools
+from math import factorial, prod
 from typing import List
+from finite_group_presentations import A, C, D, Q8, S, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
+from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
 def test_free_group_identities():
@@ -112,37 +115,46 @@ def test_normal_subgroup():
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
     ).is_normal()
 
-    H = F2.subgroup([a**3, b**2, a.conjugate(b) * a])
-    assert not H.is_normal()
-    N = H.normalization()
-    assert N.is_normal() and N.contains_subgroup(H)
-    reps: List[FreeGroupElement] = [
-        a,
-        b,
-        a**2,
-        a * b,
-        a**2 * b,
-    ]
-    for elem in reps:
-        assert not N.contains_element(elem)
 
-    F4 = FreeGroup(("a", "b", "c", "d"))
-    a, b, c, d = F4.gens()
-    S5 = F4.subgroup(
-        [
-            a**2,
-            b**2,
-            c**2,
-            d**2,
-            (a * b) ** 3,
-            (b * c) ** 3,
-            (c * d) ** 3,
-            commutator(a, c),
-            commutator(a, d),
-            commutator(b, d),
-        ]
-    )
-    S5.normalization()
+def test_finite_groups():
+    # This verifies the sizes of finite groups, and that the ranks of the kernels for them satisfy the formula:
+    # rank(N_G) == |G| * (n - 1) + 1, where N_G = ker(F_n -> G).
+    def verify_formula(N: SubgroupOfFreeGroup):
+        assert N.rank() == N.index() * (N.free_group.rank() - 1) + 1
+
+    for n in range(2, 10):
+        Cn = C(n)
+        assert Cn.index() == n
+        verify_formula(Cn)
+
+    for n in range(3, 10):
+        Dn = D(n)
+        assert Dn.index() == 2 * n
+        verify_formula(Dn)
+
+    Q = Q8()
+    assert Q.index() == 8
+    verify_formula(Q)
+
+    for n in range(3, 6):
+        Sn = S(n)
+        assert Sn.index() == factorial(n)
+        verify_formula(Sn)
+
+    for n in range(3, 6):
+        An = A(n)
+        assert An.index() == factorial(n) // 2
+        verify_formula(An)
+
+    for gps in [
+        [C(2), C(2)],
+        [S(3), S(3)],
+        [A(3), A(3), C(2)],
+        [Q8(), C(2)],
+    ]:
+        P = dir_prod(gps)
+        assert P.index() == prod((g.index() for g in gps))
+        verify_formula(P)
 
 
 def test_all():
@@ -151,3 +163,4 @@ def test_all():
     test_subgroup_new_generators()
     test_subgroup_element_containement()
     test_normal_subgroup()
+    test_finite_groups()

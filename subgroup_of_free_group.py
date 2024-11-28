@@ -306,7 +306,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         )
 
     def normalization(self, depth: int = 20) -> "SubgroupOfFreeGroup":
-        # This may run forever. Beware!!!
+        # Beware the word problem!
 
         current = self
 
