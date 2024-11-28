@@ -4,6 +4,7 @@ from free_group import (
     FreeGroupElement,
     FreeGroupGenerator,
     FreeGroupTemplate,
+    sign,
     verify,
 )
 
@@ -113,7 +114,7 @@ class _SubgroupGraph:
 
     def glue(self, v0: Vertex, v1: Vertex):
         # Replaces v0 by v1, recursively.
-        glues = set(((v0, v1),))
+        glues = [(v0, v1)]
 
         while glues:
             v0, v1 = glues.pop()
@@ -133,16 +134,16 @@ class _SubgroupGraph:
                 if edge.target == v0:
                     v1_prev = v1.backward_edges.get(gen)
                     if v1_next is not None:
-                        glues.add((v1, v1_next.target))
+                        glues.append((v1, v1_next.target))
                     if v1_prev is not None:
-                        glues.add((v1_prev.source, v1))
+                        glues.append((v1_prev.source, v1))
                     if v1_prev is None and v1_next is None:
                         self.add_edge(v1, gen, v1)
                 else:
                     if v1_next is None:
                         self.add_edge(v1, gen, edge.target)
                     else:
-                        glues.add((edge.target, v1_next.target))
+                        glues.append((edge.target, v1_next.target))
 
             for gen, edge in sorted(v0.backward_edges.items()):
                 self.remove_edge(edge)
@@ -152,16 +153,15 @@ class _SubgroupGraph:
                 if v1_prev is None:
                     self.add_edge(edge.source, gen, v1)
                 else:
-                    glues.add((edge.source, v1_prev.source))
+                    glues.append((edge.source, v1_prev.source))
 
             self.remove_vertex(v0)
-            for pair in list(glues):
-                if pair[0] == pair[1]:
-                    glues.remove(pair)
+            for i, pair in list(enumerate(glues)):
+                if pair[0] == pair[1] == v0:
+                    glues[i] = (v1, v1)
                 elif v0 in pair:
-                    glues.remove(pair)
                     other = pair[1 - pair.index(v0)]
-                    glues.add((other, v1))
+                    glues[i] = (other, v1)
 
     def relabel(self):
         # What this function actually does is give every vertex a minimal representative.
@@ -200,6 +200,26 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
 
         # We list the edges outside the spanning tree. They correspond to the free generators.
         self._special_edges = self._graph.special_edges()
+
+        for v in self._graph.vertices:
+            if v == self._graph.identity_vertex:
+                continue
+            gen, pow = tuple(v.elem)[-1]
+            sgn = sign(pow)
+            if sgn == 1:
+                edge = v.backward_edges.get(gen)
+                assert edge is not None
+                assert edge.source.elem * gen == v.elem
+            else:
+                edge = v.forward_edges.get(gen)
+                assert edge is not None
+                assert edge.target.elem * ~gen == v.elem
+
+        assert (
+            len(self._graph.edges)
+            == len(self._special_edges) + len(self._graph.vertices) - 1
+        )
+
         self._gens_from_edges = {
             edge: edge.source.elem * edge.elem * ~edge.target.elem
             for edge in self._special_edges
