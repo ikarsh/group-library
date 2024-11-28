@@ -10,7 +10,7 @@ from typing import (
     Tuple,
 )
 
-from word import Letter, Word
+from word import Word
 
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
@@ -20,21 +20,22 @@ class FreeGroup:
     def __init__(self, _letters: Tuple[str, ...] | int, name: Optional[str] = None):
         if isinstance(_letters, int):
             if _letters <= 26:
-                _letters = tuple(chr(ord("a") + i) for i in range(_letters))
+                letters: Tuple[str, ...] = tuple(
+                    chr(ord("a") + i) for i in range(_letters)
+                )
             else:
                 raise NotImplementedError("Too many generators")
-        letters = tuple(Letter(_letter) for _letter in _letters)
+        else:
+            letters = _letters
         for letter0, letter1 in itertools.combinations(letters, 2):
-            if letter0.name.startswith(letter1.name) or letter1.name.startswith(
-                letter0.name
-            ):
+            if letter0.startswith(letter1) or letter1.startswith(letter0):
                 raise ValueError(
                     f"Generators cannot be prefixes of each other: {letter0}, {letter1}"
                 )
         self._letters = letters  # TODO hide
         self._name = name
 
-    def contains_letter(self, letter: Letter) -> bool:
+    def contains_letter(self, letter: str) -> bool:
         return letter in self._letters
 
     def gens(self) -> Tuple["FreeGroupGenerator", ...]:
@@ -62,9 +63,9 @@ class FreeGroup:
                 yield w
             else:
                 for gen in self.gens():
-                    if w.last_letter_with_sign() != (gen.letter, -1):
+                    if w.last_letter_with_sign() != (gen, -1):
                         yield from paths(w * gen, len - 1)
-                    if w.last_letter_with_sign() != (gen.letter, 1):
+                    if w.last_letter_with_sign() != (gen, 1):
                         yield from paths(w * ~gen, len - 1)
 
         for len in itertools.count(0):
@@ -76,20 +77,18 @@ class FreeGroup:
         return self.identity() * self.identity().from_str_over_letters(self._letters, s)
 
     def subgroup(
-        self, relations_: Sequence["FreeGroupElement | str"]
+        self, relations_: Sequence["FreeGroupElement"]
     ) -> "SubgroupOfFreeGroup":
         from subgroup_of_free_group import SubgroupOfFreeGroup
 
         relations: List["FreeGroupElement"] = []
         for relation in relations_:
-            if isinstance(relation, str):
-                relation = self.elem_from_str(relation)
             relations.append(relation)
 
         return SubgroupOfFreeGroup.from_relations(self, relations)
 
     def normal_subgroup(
-        self, relations: Sequence["FreeGroupElement | str"]
+        self, relations: Sequence["FreeGroupElement"]
     ) -> "SubgroupOfFreeGroup":
         return self.subgroup(relations).normalization()
 
@@ -110,7 +109,7 @@ class FreeGroup:
 
 
 @total_ordering
-class FreeGroupElement(Word):
+class FreeGroupElement(Word[str]):
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         super().__init__()
@@ -118,18 +117,18 @@ class FreeGroupElement(Word):
     def identity(self) -> "FreeGroupElement":
         return FreeGroupElement(self.free_group)
 
-    def add(self, let: Letter, pow: int = 1):
+    def add(self, let: str, pow: int = 1):
         if not self.free_group.contains_letter(let):
             raise ValueError(f"Generator {let} not in free group {self.free_group}")
         super().add(let, pow)
 
     if TYPE_CHECKING:
 
-        def __mul__(self, other: Word) -> "FreeGroupElement": ...
+        def __mul__(self, other: Word[str]) -> "FreeGroupElement": ...
         def __pow__(self, n: int) -> "FreeGroupElement": ...
         def __invert__(self) -> "FreeGroupElement": ...
         def copy(self) -> "FreeGroupElement": ...
-        def conjugate(self, other: Word) -> "FreeGroupElement": ...
+        def conjugate(self, other: Word[str]) -> "FreeGroupElement": ...
 
     def __iter__(self) -> Iterator[Tuple["FreeGroupGenerator", int]]:
         return iter(
@@ -160,7 +159,7 @@ class FreeGroupElement(Word):
 
 
 class FreeGroupGenerator(FreeGroupElement):
-    def __init__(self, free_group: FreeGroup, letter: Letter):
+    def __init__(self, free_group: FreeGroup, letter: str):
         if not free_group.contains_letter(letter):
             raise ValueError(f"Generator {letter} not in free group {free_group}")
         self.letter = letter
