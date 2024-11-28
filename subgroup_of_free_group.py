@@ -8,16 +8,20 @@ from free_group import (
 )
 
 
-class Vertex:
+class Vertex(FreeGroupTemplate):
     def __init__(self, elem: FreeGroupElement):
-        self.free_group = elem.free_group
         self.elem = elem
         self.forward_edges: Dict[FreeGroupGenerator, Edge] = {}
         self.backward_edges: Dict[FreeGroupGenerator, Edge] = {}
+        super().__init__(elem.free_group)
 
     def delete(self):
         if self.forward_edges or self.backward_edges:
             raise ValueError("Cannot delete vertex with edges")
+
+    @verify
+    def __lt__(self, other: "Vertex") -> bool:
+        return self.elem < other.elem
 
     def __hash__(self) -> int:
         return hash(self.elem)
@@ -50,6 +54,13 @@ class Edge:
 
     def __hash__(self) -> int:
         return hash((self.source, self.elem, self.target))
+
+    def __lt__(self, other: "Edge") -> bool:
+        return (self.source, self.elem, self.target) < (
+            other.source,
+            other.elem,
+            other.target,
+        )
 
     def __repr__(self) -> str:
         return f"{self.source} -- {self.elem} --> {self.target}"
@@ -113,7 +124,7 @@ class _SubgroupGraph:
             if v0.elem < v1.elem:
                 v0, v1 = v1, v0
 
-            for gen, edge in list(v0.forward_edges.items()):
+            for gen, edge in sorted(v0.forward_edges.items()):
                 assert edge.elem == gen
                 self.remove_edge(edge)
                 v1_next = v1.forward_edges.get(gen)
@@ -133,7 +144,7 @@ class _SubgroupGraph:
                     else:
                         glues.add((edge.target, v1_next.target))
 
-            for gen, edge in list(v0.backward_edges.items()):
+            for gen, edge in sorted(v0.backward_edges.items()):
                 self.remove_edge(edge)
                 v1_prev = v1.backward_edges.get(gen)
                 # The edgecase does not happen here.
@@ -156,14 +167,14 @@ class _SubgroupGraph:
         # What this function actually does is give every vertex a minimal representative.
         # Minimality is taken with respect to length and then lexicographically.
         # This ensures a spanning tree is created.
-        vertices_to_clean = set((self.identity_vertex,))
+        vertices_to_clean = self.vertices.copy()
         while vertices_to_clean:
             v = vertices_to_clean.pop()
-            for edge in v.forward_edges.values():
+            for edge in sorted(v.forward_edges.values()):
                 if edge.source.elem * edge.elem < edge.target.elem:
                     edge.target.elem = edge.source.elem * edge.elem
                     vertices_to_clean.add(edge.target)
-            for edge in v.backward_edges.values():
+            for edge in sorted(v.backward_edges.values()):
                 if edge.target.elem * ~edge.elem < edge.source.elem:
                     edge.source.elem = edge.target.elem * ~edge.elem
                     vertices_to_clean.add(edge.source)
@@ -171,7 +182,7 @@ class _SubgroupGraph:
     def special_edges(self) -> List[Edge]:
         return [
             edge
-            for edge in self.edges
+            for edge in sorted(self.edges)
             if edge.source.elem * edge.elem != edge.target.elem
         ]
 
@@ -203,7 +214,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         return list(self._gens_from_edges.values())
 
     def coset_representatives(self) -> List[FreeGroupElement]:
-        return [v.elem for v in self._graph.vertices]
+        return [v.elem for v in sorted(self._graph.vertices)]
 
     @verify
     def express(
