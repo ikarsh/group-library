@@ -1,3 +1,4 @@
+import itertools
 from typing import List
 from free_group import FreeGroup, FreeGroupElement, commutator
 
@@ -30,6 +31,9 @@ def test_free_group_identities():
     assert c(x, y) == x * y * ~x * ~y
     assert c(x, y) == ~c(y, x)
     assert c(x * y, z) == c(x, c(y, z)) * c(y, z) * c(x, z)
+    assert (
+        c(~x, ~y) == (~x) ** 2 * c(x, ~y) * (~y) ** 2 * c(y, x) * x**2 * c(~x, y) * y**2
+    )
 
     # Jacobi identity
     assert (
@@ -38,6 +42,13 @@ def test_free_group_identities():
         * c(x.conjugate(z), c(y, z))
         == e
     )
+
+
+def test_subgroup_creation():
+    F = FreeGroup(("a", "b"))
+    words = list(F.__iter__(4))
+    for w1, w2 in itertools.combinations(words, 2):
+        F.subgroup([w1, w2])
 
 
 def test_subgroup_new_generators():
@@ -56,6 +67,7 @@ def test_subgroup_new_generators():
         [a * b, b * a],
         [(a * b) ** 2, a],
         [(a * b) ** 3, b],
+        [b * a * ~b, a**3 * ~b],
         [a**2, b**3, commutator(a, b)],
         [(a * b) ** 10, commutator(a, b) ** 3, b**1, b.conjugate(a)],
         [a**2 * b**3 * a ** (-2), b**3, commutator(a, b.conjugate(a**5))],
@@ -117,6 +129,7 @@ def test_normal_subgroup():
 
 def test_all():
     test_free_group_identities()
+    test_subgroup_creation()
     test_subgroup_new_generators()
     test_subgroup_element_containement()
     test_normal_subgroup()
