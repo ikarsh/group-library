@@ -1,3 +1,4 @@
+import itertools
 from typing import Dict, List, Optional, Set, Tuple
 from free_group import (
     FreeGroup,
@@ -10,8 +11,12 @@ from free_group import (
 
 
 class Vertex(FreeGroupTemplate):
+    idx = 0
+
     def __init__(self, elem: FreeGroupElement):
         self.elem = elem
+        self.idx = Vertex.idx
+        Vertex.idx += 1
         self.forward_edges: Dict[FreeGroupGenerator, Edge] = {}
         self.backward_edges: Dict[FreeGroupGenerator, Edge] = {}
         super().__init__(elem.free_group)
@@ -25,17 +30,21 @@ class Vertex(FreeGroupTemplate):
         return self.elem < other.elem
 
     def __hash__(self) -> int:
-        return hash(self.elem)
+        return hash(self.idx)
 
     def __repr__(self) -> str:
         return repr(self.elem)
 
 
 class Edge:
+    idx = 0
+
     def __init__(self, source: Vertex, elem: FreeGroupGenerator, target: Vertex):
         self.source = source
         self.elem = elem
         self.target = target
+        self.idx = Edge.idx
+        Edge.idx += 1
 
         if (
             self.source.forward_edges.get(self.elem) is not None
@@ -54,7 +63,7 @@ class Edge:
         del self.target.backward_edges[self.elem]
 
     def __hash__(self) -> int:
-        return hash((self.source, self.elem, self.target))
+        return hash(self.idx)
 
     def __lt__(self, other: "Edge") -> bool:
         return (self.source, self.elem, self.target) < (
@@ -179,6 +188,8 @@ class _SubgroupGraph:
                     edge.source.elem = edge.target.elem * ~edge.elem
                     vertices_to_clean.add(edge.source)
 
+        assert len(self.edges) == len(self.special_edges()) + len(self.vertices) - 1
+
     def special_edges(self) -> List[Edge]:
         return [
             edge
@@ -200,25 +211,6 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
 
         # We list the edges outside the spanning tree. They correspond to the free generators.
         self._special_edges = self._graph.special_edges()
-
-        for v in self._graph.vertices:
-            if v == self._graph.identity_vertex:
-                continue
-            gen, pow = tuple(v.elem)[-1]
-            sgn = sign(pow)
-            if sgn == 1:
-                edge = v.backward_edges.get(gen)
-                assert edge is not None
-                assert edge.source.elem * gen == v.elem
-            else:
-                edge = v.forward_edges.get(gen)
-                assert edge is not None
-                assert edge.target.elem * ~gen == v.elem
-
-        assert (
-            len(self._graph.edges)
-            == len(self._special_edges) + len(self._graph.vertices) - 1
-        )
 
         self._gens_from_edges = {
             edge: edge.source.elem * edge.elem * ~edge.target.elem
@@ -298,10 +290,10 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         )
 
     def is_normal(self) -> bool:
-        # TODO improve, this is a very naive implementation
-        for gen in self.free_group.gens():
-            if not self.conjugate(gen).equals_subgroup(self):
-                return False
+        for gen in self.gens():
+            for a in self.free_group.gens():
+                if not self.contains_element(gen.conjugate(a)):
+                    return False
         return True
 
     def _one_normalization_step(self) -> "SubgroupOfFreeGroup":
@@ -309,14 +301,18 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
             [gen.conjugate(a) for gen in self.gens() for a in self.free_group.gens()]
         )
 
-    def normalization(self) -> "SubgroupOfFreeGroup":
+    def normalization(self, depth: int = 20) -> "SubgroupOfFreeGroup":
         # This may run forever. Beware!!!
-        next_step = self._one_normalization_step()
 
-        if self.equals_subgroup(next_step):
-            return self
+        current = self
 
-        return next_step.normalization()
+        for _ in range(depth + 1):
+            next_step = current._one_normalization_step()
+            if current.equals_subgroup(next_step):
+                return current
+            current = next_step
+
+        raise RuntimeError(f"Normalization did not converge in {depth} steps")
 
     def index(self) -> int:
         assert self.is_normal()

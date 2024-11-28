@@ -1,3 +1,4 @@
+from functools import total_ordering
 import itertools
 from typing import (
     TYPE_CHECKING,
@@ -147,6 +148,7 @@ def verify(f: Callable[[A, B], C]) -> Callable[[A, B], C]:
     return wrapper
 
 
+@total_ordering
 class FreeGroupElement(FreeGroupTemplate):
     # Words should always be reduced.
     # This is not enforced in the constructor, so it should not be called outside of this class.
@@ -202,12 +204,12 @@ class FreeGroupElement(FreeGroupTemplate):
                 if pow2 < pow1:
                     if len(other.word) == i:
                         return False
-                    return let1.name <= other.word[i][0].name
+                    return let1.name < other.word[i + 1][0].name
                 else:
                     if len(self.word) == i:
                         return True
-                    return self.word[i][0].name <= let2.name
-            return let1.name <= let2.name
+                    return self.word[i + 1][0].name < let2.name
+            return let1.name < let2.name
         return len(self.word) < len(other.word)
 
     # This is measured by the length, then lexicographically by the generator names. `a` is smaller than `a^-1`.
