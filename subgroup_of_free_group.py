@@ -132,7 +132,7 @@ class _SubgroupGraph:
             if v0.elem < v1.elem:
                 v0, v1 = v1, v0
 
-            for gen, edge in sorted(v0.forward_edges.items()):
+            for gen, edge in list(v0.forward_edges.items()):
                 assert edge.elem == gen
                 self.remove_edge(edge)
                 v1_next = v1.forward_edges.get(gen)
@@ -152,7 +152,7 @@ class _SubgroupGraph:
                     else:
                         glues.append((edge.target, v1_next.target))
 
-            for gen, edge in sorted(v0.backward_edges.items()):
+            for gen, edge in list(v0.backward_edges.items()):
                 self.remove_edge(edge)
                 v1_prev = v1.backward_edges.get(gen)
                 # The edgecase does not happen here.
@@ -177,11 +177,11 @@ class _SubgroupGraph:
         vertices_to_clean = self.vertices.copy()
         while vertices_to_clean:
             v = vertices_to_clean.pop()
-            for edge in sorted(v.forward_edges.values()):
+            for edge in v.forward_edges.values():
                 if edge.source.elem * edge.elem < edge.target.elem:
                     edge.target.elem = edge.source.elem * edge.elem
                     vertices_to_clean.add(edge.target)
-            for edge in sorted(v.backward_edges.values()):
+            for edge in v.backward_edges.values():
                 if edge.target.elem * ~edge.elem < edge.source.elem:
                     edge.source.elem = edge.target.elem * ~edge.elem
                     vertices_to_clean.add(edge.source)
@@ -191,7 +191,7 @@ class _SubgroupGraph:
     def special_edges(self) -> List[Edge]:
         return [
             edge
-            for edge in sorted(self.edges)
+            for edge in self.edges
             if edge.source.elem * edge.elem != edge.target.elem
         ]
 
@@ -224,7 +224,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         return list(self._gens_from_edges.values())
 
     def coset_representatives(self) -> List[FreeGroupElement]:
-        return [v.elem for v in sorted(self._graph.vertices)]
+        return [v.elem for v in self._graph.vertices]
 
     @verify
     def express(
@@ -288,6 +288,22 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         )
 
     def is_normal(self) -> bool:
+        # TODO this is faster code that works in the case of finite index. Maybe it can be generalized?
+        # for v in self._graph.vertices:
+        #     if not (
+        #         len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
+        #     ):
+        #         return False
+        # for edge in self._graph.edges:
+        #     for gen in self.free_group.gens():
+        #         new_source = edge.source.forward_edges[gen].target
+        #         new_target = edge.target.forward_edges[gen].target
+        #         new_edge = new_source.forward_edges.get(gen)
+        #         assert new_edge is not None
+        #         if new_edge.target != new_target:
+        #             return False
+        # return True
+
         for gen in self.gens():
             for a in self.free_group.gens():
                 if not self.contains_element(gen.conjugate(a)):
