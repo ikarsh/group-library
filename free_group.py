@@ -6,6 +6,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    Optional,
     Sequence,
     Tuple,
     TypeVar,
@@ -40,7 +41,7 @@ class _Letter:
 
 
 class FreeGroup:
-    def __init__(self, _letters: Tuple[str, ...]):
+    def __init__(self, _letters: Tuple[str, ...], name: Optional[str] = None):
         letters = tuple(_Letter(_letter) for _letter in _letters)
         for letter0, letter1 in itertools.combinations(letters, 2):
             if letter0.name.startswith(letter1.name) or letter1.name.startswith(
@@ -49,13 +50,18 @@ class FreeGroup:
                 raise ValueError(
                     f"Generators cannot be prefixes of each other: {letter0}, {letter1}"
                 )
-        self.letters = letters
+        self.letters = letters  # TODO hide
+        self._name = name
 
     def gens(self) -> Tuple["FreeGroupGenerator", ...]:
         return tuple(FreeGroupGenerator(self, letter) for letter in self.letters)
 
     def __repr__(self):
-        return f"Free Group over {', '.join(repr(letter) for letter in self.letters)}"
+        return (
+            f"Free Group over {', '.join(repr(letter) for letter in self.letters)}"
+            if self._name is None
+            else self._name
+        )
 
     def __hash__(self):
         return hash((self.letters))

@@ -59,7 +59,17 @@ class _SubgroupGraph:
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         self.identity_vertex = Vertex(free_group.identity())
+        self.vertices: Set[Vertex] = set((self.identity_vertex,))
         self.edges: Set[Edge] = set()
+
+    def add_vertex(self, elem: FreeGroupElement) -> Vertex:
+        new_vertex = Vertex(elem)
+        self.vertices.add(new_vertex)
+        return new_vertex
+
+    def remove_vertex(self, vertex: Vertex):
+        self.vertices.remove(vertex)
+        vertex.delete()
 
     def add_edge(self, source: Vertex, elem: FreeGroupGenerator, target: Vertex):
         self.edges.add(Edge(source, elem, target))
@@ -77,14 +87,14 @@ class _SubgroupGraph:
                     if vertex.forward_edges.get(gen) is not None:
                         vertex = vertex.forward_edges[gen].target
                     else:
-                        new_vertex = Vertex(vertex.elem * gen)
+                        new_vertex = self.add_vertex(vertex.elem * gen)
                         self.add_edge(vertex, gen, new_vertex)
                         vertex = new_vertex
                 else:
                     if vertex.backward_edges.get(gen) is not None:
                         vertex = vertex.backward_edges[gen].source
                     else:
-                        new_vertex = Vertex(vertex.elem * ~gen)
+                        new_vertex = self.add_vertex(vertex.elem * ~gen)
                         self.add_edge(new_vertex, gen, vertex)
                         vertex = new_vertex
 
@@ -98,6 +108,8 @@ class _SubgroupGraph:
             v0, v1 = glues.pop()
             if v0 == v1:
                 continue
+
+            assert v0 in self.vertices and v1 in self.vertices
             if v0.elem < v1.elem:
                 v0, v1 = v1, v0
 
@@ -126,7 +138,12 @@ class _SubgroupGraph:
                 else:
                     glues.add((edge.source, v1_prev.source))
 
-            v0.delete()
+            self.remove_vertex(v0)
+            for pair in list(glues):
+                if v0 in pair:
+                    glues.remove(pair)
+                    other = pair[1 - pair.index(v0)]
+                    glues.add((v1, other))
 
     def relabel(self):
         # What this function actually does is give every vertex a minimal representative.
@@ -171,6 +188,9 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         }
 
         super().__init__(free_group)
+
+    def __repr__(self) -> str:
+        return f"Subgroup of {self.free_group} with free basis {self.gens()}"
 
     def gens(self) -> List[FreeGroupElement]:
         return list(self._gens_from_edges.values())
@@ -237,6 +257,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         )
 
     def is_normal(self) -> bool:
+        # TODO improve, this is a very naive implementation
         for gen in self.free_group.gens():
             if not self.conjugate(gen).equals_subgroup(self):
                 return False
@@ -248,10 +269,17 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
         )
 
     def normalization(self) -> "SubgroupOfFreeGroup":
-        # This may run forever. Beware!
+        # This may run forever. Beware!!!
         next_step = self._one_normalization_step()
 
         if self.equals_subgroup(next_step):
             return self
 
         return next_step.normalization()
+
+    def index(self) -> int:
+        assert self.is_normal()
+        return len(self._graph.vertices)
+
+    def rank(self) -> int:
+        return len(self.gens())
