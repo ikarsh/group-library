@@ -4,11 +4,10 @@ from free_group import (
     FreeGroupElement,
     FreeGroupGenerator,
     FreeGroupTemplate,
-    verify,
 )
 
 
-class Vertex(FreeGroupTemplate):
+class Vertex:
     idx = 0
 
     def __init__(self, elem: FreeGroupElement):
@@ -17,13 +16,11 @@ class Vertex(FreeGroupTemplate):
         Vertex.idx += 1
         self.forward_edges: Dict[FreeGroupGenerator, Edge] = {}
         self.backward_edges: Dict[FreeGroupGenerator, Edge] = {}
-        super().__init__(elem.free_group)
 
     def delete(self):
         if self.forward_edges or self.backward_edges:
             raise ValueError("Cannot delete vertex with edges")
 
-    @verify
     def __lt__(self, other: "Vertex") -> bool:
         return self.elem < other.elem
 
@@ -297,28 +294,23 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
     def coset_representatives(self) -> List[FreeGroupElement]:
         return self._graph.coset_representatives()
 
-    @verify
     def express(
         self, elem: FreeGroupElement
     ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
         return self._graph.express(elem)
 
-    @verify
     def contains_element(self, elem: FreeGroupElement) -> bool:
         return self.express(elem) is not None
 
-    @verify
     def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
         for gen in other.gens():
             if not self.contains_element(gen):
                 return False
         return True
 
-    @verify
     def equals_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
         return self.contains_subgroup(other) and other.contains_subgroup(self)
 
-    @verify
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
         return SubgroupOfFreeGroup.from_relations(
             self.free_group,

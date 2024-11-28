@@ -22,8 +22,7 @@ def dir_prod(gps: List[SubgroupOfFreeGroup]) -> SubgroupOfFreeGroup:
 
     def gens(i: int) -> Tuple[FreeGroupElement, ...]:
         return tuple(
-            FreeGroupElement.from_str(F, f"a{i}_{j}")
-            for j in range(gps[i].free_group.rank())
+            F.elem_from_str(f"a{i}_{j}") for j in range(gps[i].free_group.rank())
         )
 
     for i, gp in enumerate(gps):
