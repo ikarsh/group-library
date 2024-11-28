@@ -26,7 +26,7 @@ def sign(n: int) -> Literal[-1, 1]:
 
 class _Letter:
     def __init__(self, name: str):
-        if not (name and name[0].isalpha() and name.isalnum()):
+        if not name.isidentifier():
             raise ValueError(f"Invalid generator name: {name}")
         self.name = name
 
@@ -68,6 +68,29 @@ class FreeGroup:
 
     def identity(self):
         return FreeGroupElement(self, [])
+
+    def rank(self):
+        return len(self.gens())
+
+    def __iter__(self, max_len: Optional[int] = None) -> Iterator["FreeGroupElement"]:
+        def paths(w: FreeGroupElement, len: int) -> Iterator[FreeGroupElement]:
+            if len == 0:
+                yield w
+            else:
+                for gen in self.gens():
+                    if not (
+                        w.word and w.word[-1][0] == gen.letter and w.word[-1][1] < 0
+                    ):
+                        yield from paths(w * gen, len - 1)
+                    if not (
+                        w.word and w.word[-1][0] == gen.letter and w.word[-1][1] > 0
+                    ):
+                        yield from paths(w * ~gen, len - 1)
+
+        for len in itertools.count(0):
+            if max_len and len > max_len:
+                break
+            yield from paths(self.identity(), len)
 
     def subgroup(
         self, relations_: Sequence["FreeGroupElement | str"]
@@ -264,6 +287,20 @@ class FreeGroupElement(FreeGroupTemplate):
     @verify
     def conjugate(self, other: "FreeGroupElement") -> "FreeGroupElement":
         return other * self * ~other
+
+    def substitute(
+        self, codomain: FreeGroup, values: Tuple["FreeGroupElement", ...]
+    ) -> "FreeGroupElement":
+        if not all(val.free_group == codomain for val in values):
+            raise ValueError("Values must be from the same free group as the codomain.")
+        if len(values) != self.free_group.rank():
+            raise ValueError(f"Incorrect number of arguments")
+
+        mapping = {gen: val for gen, val in zip(self.free_group.gens(), values)}
+        res = codomain.identity()
+        for gen, pow in self:
+            res *= mapping[gen] ** pow
+        return res
 
 
 class FreeGroupGenerator(FreeGroupElement):
