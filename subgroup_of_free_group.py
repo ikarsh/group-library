@@ -1,11 +1,9 @@
-import itertools
 from typing import Dict, List, Optional, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
     FreeGroupTemplate,
-    sign,
     verify,
 )
 
@@ -298,7 +296,13 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
 
     def _one_normalization_step(self) -> "SubgroupOfFreeGroup":
         return self.free_group.subgroup(
-            [gen.conjugate(a) for gen in self.gens() for a in self.free_group.gens()]
+            self.gens()
+            + [
+                gen.conjugate(a**s)
+                for gen in self.gens()
+                for a in self.free_group.gens()
+                for s in (-1, 1)
+            ]
         )
 
     def normalization(self, depth: int = 20) -> "SubgroupOfFreeGroup":
