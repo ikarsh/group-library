@@ -102,17 +102,17 @@ def test_subgroup_element_containement():
 
 
 def test_normal_subgroup():
-    F = FreeGroup(("a", "b"))
-    a, b = F.gens()
+    F2 = FreeGroup(("a", "b"))
+    a, b = F2.gens()
 
-    assert F.full_subgroup().is_normal()
-    assert F.empty_subgroup().is_normal()
-    assert not F.subgroup([a]).is_normal()
-    assert F.subgroup(
+    assert F2.full_subgroup().is_normal()
+    assert F2.empty_subgroup().is_normal()
+    assert not F2.subgroup([a]).is_normal()
+    assert F2.subgroup(
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
     ).is_normal()
 
-    H = F.subgroup([a**3, b**2, a.conjugate(b) * a])
+    H = F2.subgroup([a**3, b**2, a.conjugate(b) * a])
     assert not H.is_normal()
     N = H.normalization()
     assert N.is_normal() and N.contains_subgroup(H)
@@ -125,6 +125,24 @@ def test_normal_subgroup():
     ]
     for elem in reps:
         assert not N.contains_element(elem)
+
+    F4 = FreeGroup(("a", "b", "c", "d"))
+    a, b, c, d = F4.gens()
+    S5 = F4.subgroup(
+        [
+            a**2,
+            b**2,
+            c**2,
+            d**2,
+            (a * b) ** 3,
+            (b * c) ** 3,
+            (c * d) ** 3,
+            commutator(a, c),
+            commutator(a, d),
+            commutator(b, d),
+        ]
+    )
+    S5.normalization()
 
 
 def test_all():
