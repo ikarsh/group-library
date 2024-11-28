@@ -8,13 +8,13 @@ from free_group import (
 from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
-def invariant(H: SubgroupOfFreeGroup):
-    N = H.normalization()
-    return N.rank() - N.index() * N.free_group.rank()
+def invariant(N_: SubgroupOfFreeGroup):
+    N = N_.normalization()
+    return N.index() * N.free_group.rank() - N.rank()
 
 
-def verify_invariant(H: SubgroupOfFreeGroup, steps: int = 1):
-    N = H.normalization()
+def verify_invariance(N_: SubgroupOfFreeGroup, steps: int = 1):
+    N = N_.normalization()
     n = N.free_group.rank()
     F = FreeGroup(n + steps)
     F_gens = F.gens()
@@ -24,27 +24,18 @@ def verify_invariant(H: SubgroupOfFreeGroup, steps: int = 1):
     for g in N.gens():
         relations.append(g.substitute(F, old_gens))
     for gen in new_gens:
-        relations.append(gen)
-
-    new_H = F.subgroup(relations)
-
-    for gen in new_gens:
         for gi in N.coset_representatives():
-            if gi.is_identity():
-                assert gen in relations
-                continue
             gi = gi.substitute(F, old_gens)
             relations.append(gi * gen * ~gi)
 
     new_N = F.subgroup(relations)
-    assert (
-        new_N.is_normal()
-        and new_N.contains_subgroup(new_H)
-        and new_N.equals_subgroup(new_H.normalization())
-        and new_N.rank() == N.rank() + steps * N.index()
-    )
-    assert new_H.normalization().rank() == new_N.rank()
-    assert invariant(new_H) == invariant(H)
+    assert new_N.is_normal() and new_N.rank() == N.rank() + steps * N.index()
+    assert invariant(new_N) == invariant(N)
+
+
+def verify_formula(N_: SubgroupOfFreeGroup):
+    N = N_.normalization()
+    assert invariant(N) == N.index() - 1
 
 
 def C(n: int) -> SubgroupOfFreeGroup:
@@ -55,13 +46,18 @@ def C(n: int) -> SubgroupOfFreeGroup:
 
 def prod(gps: List[SubgroupOfFreeGroup]) -> SubgroupOfFreeGroup:
     F = FreeGroup(
-        tuple(f"a{i}_{j}" for i in range(len(gps)) for j in range(gps[i].rank()))
+        tuple(
+            f"a{i}_{j}"
+            for i in range(len(gps))
+            for j in range(gps[i].free_group.rank())
+        )
     )
     relations: List[FreeGroupElement] = []
 
     def gens(i: int) -> Tuple[FreeGroupElement, ...]:
         return tuple(
-            FreeGroupElement.from_str(F, f"a{i}_{j}") for j in range(gps[i].rank())
+            FreeGroupElement.from_str(F, f"a{i}_{j}")
+            for j in range(gps[i].free_group.rank())
         )
 
     for i, gp in enumerate(gps):
