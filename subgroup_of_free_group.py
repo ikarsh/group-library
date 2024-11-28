@@ -77,28 +77,35 @@ class Edge:
 class _SubgroupGraph:
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
-        self.identity_vertex = Vertex(free_group.identity())
-        self.vertices: Set[Vertex] = set((self.identity_vertex,))
-        self.edges: Set[Edge] = set()
+        self._identity_vertex = Vertex(free_group.identity())
+        self._vertices: Set[Vertex] = set((self._identity_vertex,))
+        self._edges: Set[Edge] = set()
+
+        self.reset_cache()
+
+    def reset_cache(self):
+        self._cycle_generators: Optional[Dict[Edge, FreeGroupElement]] = None
+        self._coset_representatives: Optional[List[FreeGroupElement]] = None
 
     def add_vertex(self, elem: FreeGroupElement) -> Vertex:
         new_vertex = Vertex(elem)
-        self.vertices.add(new_vertex)
+        self._vertices.add(new_vertex)
         return new_vertex
 
     def remove_vertex(self, vertex: Vertex):
-        self.vertices.remove(vertex)
+        self._vertices.remove(vertex)
         vertex.delete()
 
     def add_edge(self, source: Vertex, elem: FreeGroupGenerator, target: Vertex):
-        self.edges.add(Edge(source, elem, target))
+        self._edges.add(Edge(source, elem, target))
 
     def remove_edge(self, edge: Edge):
-        self.edges.remove(edge)
+        self._edges.remove(edge)
         edge.delete()
 
-    def add_word(self, word: FreeGroupElement):
-        vertex = self.identity_vertex
+    def push_word(self, word: FreeGroupElement):
+        self.reset_cache()
+        vertex = self._identity_vertex
         for gen, pow in word:
             sign = 1 if pow > 0 else -1
             for _ in range(abs(pow)):
@@ -117,7 +124,7 @@ class _SubgroupGraph:
                         self.add_edge(new_vertex, gen, vertex)
                         vertex = new_vertex
 
-        self.glue(vertex, self.identity_vertex)
+        self.glue(vertex, self._identity_vertex)
 
     def glue(self, v0: Vertex, v1: Vertex):
         # Replaces v0 by v1, recursively.
@@ -128,7 +135,7 @@ class _SubgroupGraph:
             if v0 == v1:
                 continue
 
-            assert v0 in self.vertices and v1 in self.vertices
+            assert v0 in self._vertices and v1 in self._vertices
             if v0.elem < v1.elem:
                 v0, v1 = v1, v0
 
@@ -170,67 +177,49 @@ class _SubgroupGraph:
                     other = pair[1 - pair.index(v0)]
                     glues[i] = (other, v1)
 
-    def relabel(self):
+    def _relabel(self):
         # What this function actually does is give every vertex a minimal representative.
         # Minimality is taken with respect to length and then lexicographically.
         # This ensures a spanning tree is created.
-        vertices_to_clean = self.vertices.copy()
-        while vertices_to_clean:
-            v = vertices_to_clean.pop()
+        uncleared_vertices = set(self._vertices)
+
+        while uncleared_vertices:
+            v = uncleared_vertices.pop()
             for edge in v.forward_edges.values():
                 if edge.source.elem * edge.elem < edge.target.elem:
                     edge.target.elem = edge.source.elem * edge.elem
-                    vertices_to_clean.add(edge.target)
+                    uncleared_vertices.add(edge.target)
             for edge in v.backward_edges.values():
                 if edge.target.elem * ~edge.elem < edge.source.elem:
                     edge.source.elem = edge.target.elem * ~edge.elem
-                    vertices_to_clean.add(edge.source)
+                    uncleared_vertices.add(edge.source)
 
-        assert len(self.edges) == len(self.special_edges()) + len(self.vertices) - 1
+        # assert (
+        #     len(self._edges) == len(self.cycle_generators()) + len(self._vertices) - 1
+        # )
 
-    def special_edges(self) -> List[Edge]:
-        return [
-            edge
-            for edge in self.edges
-            if edge.source.elem * edge.elem != edge.target.elem
-        ]
-
-
-class SubgroupOfFreeGroup(FreeGroupTemplate):
-    def __init__(self, free_group: FreeGroup, relations: List[FreeGroupElement]):
-        for relation in relations:
-            if relation.free_group != free_group:
-                raise ValueError(f"Relation {relation} not in free group {free_group}")
-
-        self._graph = _SubgroupGraph(free_group)
-        for relation in relations:
-            self._graph.add_word(relation)
-        self._graph.relabel()
-
-        # We list the edges outside the spanning tree. They correspond to the free generators.
-        self._special_edges = self._graph.special_edges()
-
-        self._gens_from_edges = {
-            edge: edge.source.elem * edge.elem * ~edge.target.elem
-            for edge in self._special_edges
-        }
-
-        super().__init__(free_group)
-
-    def __repr__(self) -> str:
-        return f"Subgroup of {self.free_group} with free basis {self.gens()}"
-
-    def gens(self) -> List[FreeGroupElement]:
-        return list(self._gens_from_edges.values())
+    def cycle_generators(self) -> Dict[Edge, FreeGroupElement]:
+        if self._cycle_generators is None:
+            self._relabel()
+            self._cycle_generators = {
+                edge: value
+                for edge in self._edges
+                if not (
+                    value := edge.source.elem * edge.elem * ~edge.target.elem
+                ).is_identity()
+            }
+        return self._cycle_generators
 
     def coset_representatives(self) -> List[FreeGroupElement]:
-        return [v.elem for v in self._graph.vertices]
+        if self._coset_representatives is None:
+            self._relabel()
+            self._coset_representatives = [v.elem for v in self._vertices]
+        return self._coset_representatives
 
-    @verify
     def express(
         self, elem: FreeGroupElement
     ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
-        vertex = self._graph.identity_vertex
+        vertex = self._identity_vertex
         result: List[Tuple[FreeGroupElement, int]] = []
         for gen, pow in elem:
             sign = 1 if pow > 0 else -1
@@ -239,31 +228,80 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
                     edge = vertex.forward_edges.get(gen)
                     if edge is None:
                         return None
-                    if edge in self._special_edges:
-                        new_gen = self._gens_from_edges[edge]
+                    new_gen = self.cycle_generators().get(edge)
+                    if new_gen is not None:
                         if result and result[-1][0] == new_gen:
                             result[-1] = (new_gen, result[-1][1] + 1)
                         else:
-                            result.append((self._gens_from_edges[edge], 1))
+                            result.append((new_gen, 1))
                     vertex = edge.target
             else:
                 for _ in range(-pow):
                     edge = vertex.backward_edges.get(gen)
                     if edge is None:
                         return None
-                    if edge in self._special_edges:
-                        new_gen = self._gens_from_edges[edge]
+                    new_gen = self.cycle_generators().get(edge)
+                    if new_gen is not None:
                         if result and result[-1][0] == new_gen:
                             result[-1] = (new_gen, result[-1][1] - 1)
                         else:
-                            result.append((self._gens_from_edges[edge], -1))
+                            result.append((new_gen, -1))
                     vertex = edge.source
                 if result and result[-1][1] == 0:
                     result.pop()
 
-        if vertex != self._graph.identity_vertex:
+        if vertex != self._identity_vertex:
             return None
         return result
+
+    def index(self) -> int:
+        return len(self._vertices)
+
+
+class SubgroupOfFreeGroup(FreeGroupTemplate):
+    def __init__(self, free_group: FreeGroup):
+        self._graph = _SubgroupGraph(free_group)
+        self.reset_cache()
+        super().__init__(free_group)
+
+    def reset_cache(self):
+        # These are the edges outside of the spanning tree. They correspond to the generators.
+        self._special_edges: Optional[List[Edge]] = None
+
+        # This is the correspondence.
+        self._gens_from_edges: Optional[Dict[Edge, FreeGroupElement]] = None
+
+    @classmethod
+    def from_relations(
+        cls, free_group: FreeGroup, relations: List[FreeGroupElement]
+    ) -> "SubgroupOfFreeGroup":
+        for relation in relations:
+            if relation.free_group != free_group:
+                raise ValueError(f"Relation {relation} not in free group {free_group}")
+
+        res = SubgroupOfFreeGroup(free_group)
+        for relation in relations:
+            res.push_word(relation)
+        return res
+
+    def push_word(self, word: FreeGroupElement):
+        self._graph.push_word(word)
+        self.reset_cache()
+
+    def __repr__(self) -> str:
+        return f"Subgroup of {self.free_group} with free basis {self.gens()}"
+
+    def gens(self) -> List[FreeGroupElement]:
+        return list(self._graph.cycle_generators().values())
+
+    def coset_representatives(self) -> List[FreeGroupElement]:
+        return self._graph.coset_representatives()
+
+    @verify
+    def express(
+        self, elem: FreeGroupElement
+    ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
+        return self._graph.express(elem)
 
     @verify
     def contains_element(self, elem: FreeGroupElement) -> bool:
@@ -282,7 +320,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
 
     @verify
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup(
+        return SubgroupOfFreeGroup.from_relations(
             self.free_group,
             [gen.conjugate(elem) for gen in self.gens()],
         )
@@ -336,7 +374,7 @@ class SubgroupOfFreeGroup(FreeGroupTemplate):
 
     def index(self) -> int:
         assert self.is_normal()
-        return len(self._graph.vertices)
+        return self._graph.index()
 
     def rank(self) -> int:
         return len(self.gens())
