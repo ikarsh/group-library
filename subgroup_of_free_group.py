@@ -120,7 +120,12 @@ class _SubgroupGraph:
 
                 # Annoying edgecase
                 if edge.target == v0:
-                    if v1_next is None:
+                    v1_prev = v1.backward_edges.get(gen)
+                    if v1_next is not None:
+                        glues.add((v1, v1_next.target))
+                    if v1_prev is not None:
+                        glues.add((v1_prev.source, v1))
+                    if v1_prev is None and v1_next is None:
                         self.add_edge(v1, gen, v1)
                 else:
                     if v1_next is None:
