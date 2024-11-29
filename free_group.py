@@ -10,46 +10,47 @@ from typing import (
     Tuple,
 )
 
-from word import Word
+from word import Word, sign
 
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
 class FreeGroup:
-    def __init__(self, _letters: Tuple[str, ...] | int, name: Optional[str] = None):
-        if isinstance(_letters, int):
-            if _letters <= 26:
-                letters: Tuple[str, ...] = tuple(
-                    chr(ord("a") + i) for i in range(_letters)
+    def __init__(self, _gens: Tuple[str, ...] | int, name: Optional[str] = None):
+        self._name = name
+        if isinstance(_gens, int):
+            if _gens <= 26:
+                gen_names: Tuple[str, ...] = tuple(
+                    chr(ord("a") + i) for i in range(_gens)
                 )
             else:
                 raise NotImplementedError("Too many generators")
         else:
-            letters = _letters
-        for letter0, letter1 in itertools.combinations(letters, 2):
+            gen_names = _gens
+        for letter0, letter1 in itertools.combinations(gen_names, 2):
             if letter0.startswith(letter1) or letter1.startswith(letter0):
                 raise ValueError(
                     f"Generators cannot be prefixes of each other: {letter0}, {letter1}"
                 )
-        self._letters = letters  # TODO hide
-        self._name = name
-
-    def contains_letter(self, letter: str) -> bool:
-        return letter in self._letters
+        self._gens = tuple(
+            object.__new__(FreeGroupGenerator) for _ in range(len(gen_names))
+        )
+        for _letter, _name in zip(self._gens, gen_names):
+            _letter.__init__(self, _name)
 
     def gens(self) -> Tuple["FreeGroupGenerator", ...]:
-        return tuple(FreeGroupGenerator(self, letter) for letter in self._letters)
+        return self._gens
 
     def __repr__(self):
         return (
-            f"Free Group over {', '.join(repr(letter) for letter in self._letters)}"
+            f"Free Group over {', '.join(repr(gen) for gen in self._gens)}"
             if self._name is None
             else self._name
         )
 
     def __hash__(self):
-        return hash((self._letters))
+        return hash(("Free Group", tuple((gen.name for gen in self._gens))))
 
     def identity(self):
         return FreeGroupElement(self)
@@ -73,8 +74,39 @@ class FreeGroup:
                 break
             yield from paths(self.identity(), len)
 
-    def elem_from_str(self, s: str) -> "FreeGroupElement":
-        return self.identity() * self.identity().from_str_over_letters(self._letters, s)
+    def elem_from_str(self, s_: str) -> "FreeGroupElement":
+        word = self.identity()
+        s = s_.replace(" ", "")
+        while s:
+            for gen in self.gens():
+                if s.startswith(gen.name):
+                    s = s[len(gen.name) :]
+                    if s.startswith("^"):
+                        s = s[1:]
+                        power = 0
+                        sign = 1
+                        if s.startswith("-"):
+                            s = s[1:]
+                            sign = -1
+                        if not s or not s[0].isdigit() or s[0] == "0":
+                            raise ValueError(f"Invalid power in {s_}")
+                        while s and s[0].isdigit():
+                            power = 10 * power + int(s[0])
+                            s = s[1:]
+                        power *= sign
+                    else:
+                        power = 1
+
+                    if word.last_letter() == gen:
+                        raise ValueError(f"{s_} was given in non-reduced form.")
+                    assert power != 0
+
+                    word.add(gen, power)
+                    break
+            else:
+                raise ValueError(f"Invalid generator in {s_}")
+
+        return word
 
     def subgroup(
         self, relations_: Sequence["FreeGroupElement"]
@@ -109,7 +141,7 @@ class FreeGroup:
 
 
 @total_ordering
-class FreeGroupElement(Word[str]):
+class FreeGroupElement(Word["FreeGroupGenerator"]):
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         super().__init__()
@@ -117,26 +149,50 @@ class FreeGroupElement(Word[str]):
     def identity(self) -> "FreeGroupElement":
         return FreeGroupElement(self.free_group)
 
-    def add(self, let: str, pow: int = 1):
-        if not self.free_group.contains_letter(let):
+    def add(self, let: "FreeGroupGenerator", pow: int = 1):
+        if not let in self.free_group.gens():
             raise ValueError(f"Generator {let} not in free group {self.free_group}")
         super().add(let, pow)
 
+    def lexicographically_lt(self, other: "FreeGroupElement") -> bool:
+        if not self.free_group == other.free_group:
+            raise ValueError("Cannot compare words from different free groups.")
+        n = min(len(self.word), len(other.word))
+        for i in range(n):
+            (let1, pow1), (let2, pow2) = self.word[i], other.word[i]
+            if let1 == let2:
+                if pow1 == pow2:
+                    continue
+                if sign(pow1) != sign(pow2):
+                    return pow1 > 0 and pow2 < 0  # `a` < `a^-1`
+                pow1, pow2 = abs(pow1), abs(pow2)
+
+                if pow2 < pow1:
+                    if len(other.word) == i:
+                        return False
+                    return let1 < other.word[i + 1][0]
+                else:
+                    if len(self.word) == i:
+                        return True
+                    return self.word[i + 1][0] < let2
+            return let1 < let2
+        return len(self.word) < len(other.word)
+
+    # This is measured by the length, then lexicographically by the generator names. `a` is smaller than `a^-1`.
+    def __lt__(self, other: "FreeGroupElement") -> bool:
+        if self.length() == other.length():
+            return self.lexicographically_lt(other)
+        return self.length() < other.length()
+
     if TYPE_CHECKING:
 
-        def __mul__(self, other: Word[str]) -> "FreeGroupElement": ...
+        def __mul__(self, other: Word["FreeGroupGenerator"]) -> "FreeGroupElement": ...
         def __pow__(self, n: int) -> "FreeGroupElement": ...
         def __invert__(self) -> "FreeGroupElement": ...
         def copy(self) -> "FreeGroupElement": ...
-        def conjugate(self, other: Word[str]) -> "FreeGroupElement": ...
-
-    def __iter__(self) -> Iterator[Tuple["FreeGroupGenerator", int]]:
-        return iter(
-            (FreeGroupGenerator(self.free_group, let), pow) for let, pow in self.word
-        )
-
-    def __hash__(self) -> int:
-        return hash((self.free_group, tuple(self.word)))
+        def conjugate(
+            self, other: "Word[FreeGroupGenerator]"
+        ) -> "FreeGroupElement": ...
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, FreeGroupElement):
@@ -159,13 +215,32 @@ class FreeGroupElement(Word[str]):
 
 
 class FreeGroupGenerator(FreeGroupElement):
-    def __init__(self, free_group: FreeGroup, letter: str):
-        if not free_group.contains_letter(letter):
-            raise ValueError(f"Generator {letter} not in free group {free_group}")
-        self.letter = letter
+    def __init__(self, free_group: FreeGroup, name: str):
+        for gen in free_group.gens():
+            if self is gen:
+                break
+        else:
+            raise ValueError(f"Generator {name} not in free group {free_group}")
+        self.name = name
 
         super().__init__(free_group)
-        self.add(letter)
+        self.add(self)
+
+    def __eq__(self, other: "FreeGroupGenerator | FreeGroupElement") -> bool:
+        if isinstance(other, FreeGroupGenerator):
+            return self is other
+        return super().__eq__(other)
+
+    def __lt__(self, other: "FreeGroupGenerator | FreeGroupElement") -> bool:
+        if isinstance(other, FreeGroupGenerator):
+            return self.name < other.name
+        return super().__lt__(other)
+
+    def __hash__(self):
+        return hash((self.free_group, self.name))
+
+    def __repr__(self):
+        return self.name
 
 
 def commutator(

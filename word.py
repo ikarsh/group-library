@@ -1,6 +1,4 @@
-from typing import Generic, Literal, Protocol, TypeVar
-from functools import total_ordering
-import itertools
+from typing import Generic, Iterator, Literal, TypeVar
 from typing import (
     List,
     Literal,
@@ -17,11 +15,13 @@ def sign(n: int) -> Literal[-1, 1]:
     raise ValueError(f"Sign of 0 is undefined")
 
 
-# Currently these are the only allowed types for Word. This is silly.
-T = TypeVar("T", str, "Word")
+# class SupportsLT(Protocol):
+#     def __lt__(self, other: "SupportsLT") -> bool: ...
 
 
-@total_ordering
+T = TypeVar("T")
+
+
 class Word(Generic[T]):
     # Words should always be reduced.
     # Do not access the __init__ directly, only through the identity method.
@@ -70,6 +70,9 @@ class Word(Generic[T]):
             res.add(let, -pow)
         return res
 
+    def __iter__(self) -> Iterator[Tuple[T, int]]:
+        return iter(self.word)
+
     def copy(self) -> "Word[T]":
         res = self.identity()
         for let, pow in self.word:
@@ -102,75 +105,6 @@ class Word(Generic[T]):
         if self.is_identity():
             return None
         return self.word[-1][0]
-
-    def lexicographically_lt(self: "Word[T]", other: "Word[T]") -> bool:
-        n = min(len(self.word), len(other.word))
-        for i in range(n):
-            (let1, pow1), (let2, pow2) = self.word[i], other.word[i]
-            if let1 == let2:
-                if pow1 == pow2:
-                    continue
-                if sign(pow1) != sign(pow2):
-                    return pow1 > 0 and pow2 < 0  # `a` < `a^-1`
-                pow1, pow2 = abs(pow1), abs(pow2)
-
-                if pow2 < pow1:
-                    if len(other.word) == i:
-                        return False
-                    return let1 < other.word[i + 1][0]
-                else:
-                    if len(self.word) == i:
-                        return True
-                    return self.word[i + 1][0] < let2
-            return let1 < let2
-        return len(self.word) < len(other.word)
-
-    # This is measured by the length, then lexicographically by the generator names. `a` is smaller than `a^-1`.
-    def __lt__(self: "Word[T]", other: "Word[T]") -> bool:
-        if self.length() == other.length():
-            return self.lexicographically_lt(other)
-        return self.length() < other.length()
-
-    @classmethod
-    def from_str_over_letters(cls, letters: Tuple[str, ...], s_: str) -> "Word[str]":
-        for l0, l1 in itertools.combinations(letters, 2):
-            if l0.startswith(l1) or l1.startswith(l0):
-                raise ValueError(
-                    f"letters cannot be prefixes of each other: {l0}, {l1}"
-                )
-
-        word = Word[str]().identity()
-        s = s_.replace(" ", "")
-        while s:
-            for let in letters:
-                if s.startswith(let):
-                    s = s[len(let) :]
-                    if s.startswith("^"):
-                        s = s[1:]
-                        power = 0
-                        sign = 1
-                        if s.startswith("-"):
-                            s = s[1:]
-                            sign = -1
-                        if not s or not s[0].isdigit() or s[0] == "0":
-                            raise ValueError(f"Invalid power in {s_}")
-                        while s and s[0].isdigit():
-                            power = 10 * power + int(s[0])
-                            s = s[1:]
-                        power *= sign
-                    else:
-                        power = 1
-
-                    if word.last_letter() == let:
-                        raise ValueError(f"{s_} was given in non-reduced form.")
-                    assert power != 0
-
-                    word.add(let, power)
-                    break
-            else:
-                raise ValueError(f"Invalid generator in {s_}")
-
-        return word
 
     def conjugate(self, other: "Word[T]") -> "Word[T]":
         return self.identity() * other * self * ~other

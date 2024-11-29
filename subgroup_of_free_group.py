@@ -1,9 +1,10 @@
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
 )
+from word import Word
 
 
 class Vertex:
@@ -212,11 +213,9 @@ class _SubgroupGraph:
             self._coset_representatives = [v.elem for v in self._vertices]
         return self._coset_representatives
 
-    def express(
-        self, elem: FreeGroupElement
-    ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
+    def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         vertex = self._identity_vertex
-        result: List[Tuple[FreeGroupElement, int]] = []
+        result: Word[FreeGroupElement] = Word().identity()
         for gen, pow in elem:
             sign = 1 if pow > 0 else -1
             if sign == 1:
@@ -226,10 +225,7 @@ class _SubgroupGraph:
                         return None
                     new_gen = self.cycle_generators().get(edge)
                     if new_gen is not None:
-                        if result and result[-1][0] == new_gen:
-                            result[-1] = (new_gen, result[-1][1] + 1)
-                        else:
-                            result.append((new_gen, 1))
+                        result.add(new_gen)
                     vertex = edge.target
             else:
                 for _ in range(-pow):
@@ -238,17 +234,30 @@ class _SubgroupGraph:
                         return None
                     new_gen = self.cycle_generators().get(edge)
                     if new_gen is not None:
-                        if result and result[-1][0] == new_gen:
-                            result[-1] = (new_gen, result[-1][1] - 1)
-                        else:
-                            result.append((new_gen, -1))
+                        result.remove(new_gen)
                     vertex = edge.source
-                if result and result[-1][1] == 0:
-                    result.pop()
 
         if vertex != self._identity_vertex:
             return None
         return result
+
+    def contains_element(self, elem: FreeGroupElement) -> bool:
+        vertex = self._identity_vertex
+        for gen, pow in elem:
+            sign = 1 if pow > 0 else -1
+            if sign == 1:
+                for _ in range(pow):
+                    edge = vertex.forward_edges.get(gen)
+                    if edge is None:
+                        return False
+                    vertex = edge.target
+            else:
+                for _ in range(-pow):
+                    edge = vertex.backward_edges.get(gen)
+                    if edge is None:
+                        return False
+                    vertex = edge.source
+        return vertex == self._identity_vertex
 
     def index(self) -> int:
         return len(self._vertices)
@@ -293,13 +302,11 @@ class SubgroupOfFreeGroup:
     def coset_representatives(self) -> List[FreeGroupElement]:
         return self._graph.coset_representatives()
 
-    def express(
-        self, elem: FreeGroupElement
-    ) -> Optional[List[Tuple[FreeGroupElement, int]]]:
+    def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         return self._graph.express(elem)
 
     def contains_element(self, elem: FreeGroupElement) -> bool:
-        return self.express(elem) is not None
+        return self._graph.contains_element(elem)
 
     def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
         for gen in other.gens():
