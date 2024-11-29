@@ -1,9 +1,10 @@
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Literal, Optional, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
 )
+from utils import sign
 from word import Word
 
 
@@ -52,6 +53,21 @@ class Vertex:
             new_vertex = Vertex(self.elem * ~gen)
             Edge(new_vertex, gen, self)
             return new_vertex
+
+    def walk_word(
+        self, word: FreeGroupElement
+    ) -> Optional[Tuple[List[Tuple["Edge", Literal[1] | Literal[-1]]], "Vertex"]]:
+        vertex = self
+        edges: List[Tuple["Edge", Literal[1] | Literal[-1]]] = []
+        for gen, pow in word:
+            s = sign(pow)
+            for _ in range(abs(pow)):
+                dir = vertex.observe_direction(gen, s)
+                if dir is None:
+                    return None
+                edge, vertex = dir
+                edges.append((edge, s))
+        return edges, vertex
 
     def __lt__(self, other: "Vertex") -> bool:
         return self.elem < other.elem
@@ -258,34 +274,26 @@ class _SubgroupGraph:
         return self._coset_representatives
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
-        vertex = self._identity_vertex
-        result: Word[FreeGroupElement] = Word().identity()
-        for gen, pow in elem:
-            sign = 1 if pow > 0 else -1
-
-            for _ in range(abs(pow)):
-                dir = vertex.observe_direction(gen, sign)
-                if dir is None:
-                    return None
-                edge, vertex = dir
-
-                new_gen = self.cycle_generators().get(edge)
-                if new_gen is not None:
-                    # Note that we are only adding the free generators of this group to result.
-                    result.add(new_gen, sign)
-
+        path = self._identity_vertex.walk_word(elem)
+        if path is None:
+            return None
+        edges, vertex = path
         if vertex != self._identity_vertex:
             return None
-        return result
+
+        word = Word[FreeGroupElement]().identity()
+        for edge, sign in edges:
+            gen = self.cycle_generators().get(edge)
+            if gen is not None:
+                word.add(gen, sign)
+
+        return word
 
     def contains_element(self, elem: FreeGroupElement) -> bool:
-        vertex = self._identity_vertex
-        for gen, pow in elem:
-            sign = 1 if pow > 0 else -1
-            for _ in range(abs(pow)):
-                vertex = vertex.walk_edge(gen, sign)
-                if vertex is None:
-                    return False
+        path = self._identity_vertex.walk_word(elem)
+        if path is None:
+            return False
+        _edges, vertex = path
         return vertex == self._identity_vertex
 
     def index(self) -> Optional[int]:
@@ -318,13 +326,6 @@ class SubgroupOfFreeGroup:
     def push_word(self, word: FreeGroupElement):
         self._graph.push_word(word)
 
-    @classmethod
-    def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
-        # Use carefully! Unlike from_relations, this does not verify the input is good.
-        res = SubgroupOfFreeGroup(graph.free_group)
-        res._graph = graph
-        return res
-
     def __repr__(self) -> str:
         return f"Subgroup of {self.free_group} with free basis {self.gens()}"
 
@@ -346,8 +347,22 @@ class SubgroupOfFreeGroup:
                 return False
         return True
 
-    def equals_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SubgroupOfFreeGroup):
+            return False
+        if self.free_group != other.free_group:
+            return False
         return self.contains_subgroup(other) and other.contains_subgroup(self)
+
+    @classmethod
+    def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
+        # Use carefully! Unlike from_relations, this does not verify the input is good.
+        res = SubgroupOfFreeGroup(graph.free_group)
+        res._graph = graph
+        return res
+
+    def copy(self) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup._from_graph(self._graph.copy())
 
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
         new_graph = self._graph.conjugate(elem)
@@ -357,43 +372,30 @@ class SubgroupOfFreeGroup:
         return len(self._graph.vertices()) == 1 and len(self._graph.edges()) == 0
 
     def is_normal(self) -> bool:
-        if self.is_empty():
-            return True
-        if self.index() is None:
-            return False
-        for edge in self._graph.edges():
-            for gen in self.free_group.gens():
-                new_source = edge.source.walk_edge(gen, 1)
-                new_target = edge.target.walk_edge(gen, 1)
-
-                assert new_source is not None and new_target is not None
-                if new_source.walk_edge(edge.elem, 1) != new_target:
+        for gen in self.gens():
+            # It isn't trivial we don't have to consider conjugations by inverses.
+            # It is true because of finite generation!
+            for a in self.free_group.gens():
+                if not self.contains_element(gen.conjugate(a)):
                     return False
         return True
 
-    def _one_normalization_step(self) -> "SubgroupOfFreeGroup":
-        return self.free_group.subgroup(
-            self.gens()
-            + [
-                gen.conjugate(a**s)
-                for gen in self.gens()
-                for a in self.free_group.gens()
-                for s in (-1, 1)
-            ]
-        )
-
-    def normalization(self, depth: int = 20) -> "SubgroupOfFreeGroup":
+    def normalization(self) -> "SubgroupOfFreeGroup":
         # Beware the word problem!
 
-        current = self
+        res = self.copy()
+        # Unlike when only checking normalization, now we do take inverses.
+        gens = [a**s for a in self.free_group.gens() for s in (-1, 1)]
 
-        for _ in range(depth + 1):
-            next_step = current._one_normalization_step()
-            if current.equals_subgroup(next_step):
-                return current
-            current = next_step
-
-        raise RuntimeError(f"Normalization did not converge in {depth} steps")
+        while True:
+            if res.is_normal():
+                return res
+            for a in res.gens():
+                for b in gens:
+                    a_conj = a.conjugate(b)
+                    if not res.contains_element(a_conj):
+                        res.push_word(a_conj)
+                        break
 
     def index(self) -> Optional[int]:
         # Returns None is the index is infinite.
