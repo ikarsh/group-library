@@ -349,7 +349,7 @@ class SubgroupOfFreeGroup:
     def gens(self) -> List[FreeGroupElement]:
         return list(self._graph.cycle_generators().values())
 
-    def coset_representatives(self) -> List[FreeGroupElement]:
+    def right_coset_representatives(self) -> List[FreeGroupElement]:
         return self._graph.coset_representatives()
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:

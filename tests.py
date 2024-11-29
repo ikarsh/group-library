@@ -116,14 +116,26 @@ def test_normal_subgroup():
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
     ).is_normal()
 
+    # Generate S3
+    assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()
+
+
+def test_finite_index_subgroup():
+    F2 = FreeGroup(("a", "b"))
+    a, b = F2.gens()
+
     # A subgroup of finite index which is not normal.
     H = F2.subgroup([a, b**2, (a**2).conjugate(b), b.conjugate(b * a)])
     assert H.index() == 3 and H.rank() == 4 and not H.is_normal()
     assert H == H.conjugate(a) and H != H.conjugate(b)
     assert H.normalization() == H.conjugate(b).normalization()
 
-    # Generate S3
-    assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()
+    conjugates = [H.conjugate(~g) for g in H.right_coset_representatives()]
+    for conj1, conj2 in itertools.combinations(conjugates, 2):
+        assert conj1 != conj2
+
+    for elem in [a * ~b, b**7, a**3 * b ** (-2) * a * b**2]:
+        assert H.conjugate(elem) in conjugates
 
 
 def test_finite_groups():
@@ -175,4 +187,5 @@ def test_all():
     test_subgroup_new_generators()
     test_subgroup_element_containement()
     test_normal_subgroup()
+    test_finite_index_subgroup()
     test_finite_groups()
