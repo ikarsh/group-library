@@ -3,7 +3,7 @@ from math import factorial, prod
 from typing import TYPE_CHECKING, List
 
 
-from finite_group_presentations import A, C, D, PSL2, Q8, S, SL2, dir_prod
+from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
 
@@ -168,9 +168,10 @@ def test_finite_groups():
         assert Dn.index() == 2 * n
         verify_formula(Dn)
 
-    Q = Q8()
-    assert Q.index() == 8
-    verify_formula(Q)
+    for n in (3, 4, 5):
+        Qn = GQ(n)
+        assert Qn.index() == 2**n
+        verify_formula(Qn)
 
     for n in range(3, 6):
         Sn = S(n)
@@ -186,7 +187,7 @@ def test_finite_groups():
         [C(2), C(2)],
         [S(3), S(3)],
         [A(3), A(3), C(2)],
-        [Q8(), C(2)],
+        [GQ(3), C(2)],
     ]:
         P = dir_prod(gps)
         assert P.index() == prod((g.index() for g in gps))
