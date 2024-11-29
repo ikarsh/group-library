@@ -4,7 +4,6 @@ from typing import List
 from finite_group_presentations import A, C, D, Q8, S, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
-from utils import unwrap
 
 
 def test_free_group_identities():
@@ -142,9 +141,7 @@ def test_finite_groups():
     # This verifies the sizes of finite groups, and that the ranks of the kernels for them satisfy the formula:
     # rank(N_G) == |G| * (n - 1) + 1, where N_G = ker(F_n -> G).
     def verify_formula(N: SubgroupOfFreeGroup):
-        idx = N.index()
-        assert idx is not None
-        assert N.rank() == idx * (N.free_group.rank() - 1) + 1
+        assert N.rank() == N.index() * (N.free_group.rank() - 1) + 1
 
     for n in range(2, 10):
         Cn = C(n)
@@ -177,7 +174,7 @@ def test_finite_groups():
         [Q8(), C(2)],
     ]:
         P = dir_prod(gps)
-        assert P.index() == prod((unwrap(g.index()) for g in gps))
+        assert P.index() == prod((g.index() for g in gps))
         verify_formula(P)
 
 

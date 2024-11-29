@@ -313,12 +313,17 @@ class _SubgroupGraph:
         _edges, vertex = path
         return vertex == self._identity_vertex
 
-    def index(self) -> Optional[int]:
+    def has_finite_index(self) -> bool:
         for v in self.vertices():
             if not (
                 len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
             ):
-                return None
+                return False
+        return True
+
+    def index(self) -> int:
+        if not self.has_finite_index():
+            raise RuntimeError("Subgroup doesn't have finite index.")
         return len(self.vertices())
 
 
@@ -350,6 +355,8 @@ class SubgroupOfFreeGroup:
         return list(self._graph.cycle_generators().values())
 
     def right_coset_representatives(self) -> List[FreeGroupElement]:
+        if not self.has_finite_index():
+            raise ValueError("Subgroup doesn't have finite index.")
         return self._graph.coset_representatives()
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
@@ -414,9 +421,12 @@ class SubgroupOfFreeGroup:
                         res.push_word(a_conj)
                         break
 
-    def index(self) -> Optional[int]:
-        # Returns None is the index is infinite.
+    def index(self) -> int:
+        # Raises error if the index is infinite.
         return self._graph.index()
+
+    def has_finite_index(self) -> bool:
+        return self._graph.has_finite_index()
 
     def rank(self) -> int:
         return len(self.gens())
