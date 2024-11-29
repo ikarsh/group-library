@@ -7,6 +7,8 @@ from free_group import (
 from utils import sign
 from word import Word
 
+Sign = Literal[-1, 1]
+
 
 class Vertex:
     idx = 0
@@ -57,9 +59,9 @@ class Vertex:
 
     def walk_word(
         self, word: FreeGroupElement
-    ) -> Optional[Tuple[List[Tuple["Edge", Literal[1] | Literal[-1]]], "Vertex"]]:
+    ) -> Optional[Tuple[List[Tuple["Edge", Sign]], "Vertex"]]:
         vertex = self
-        edges: List[Tuple["Edge", Literal[1] | Literal[-1]]] = []
+        edges: List[Tuple["Edge", Sign]] = []
         for gen, pow in word:
             s = sign(pow)
             for _ in range(abs(pow)):
@@ -72,10 +74,10 @@ class Vertex:
 
     def walk_word_violent(
         self, word: FreeGroupElement
-    ) -> Tuple[List[Tuple["Edge", Literal[1] | Literal[-1]]], "Vertex"]:
+    ) -> Tuple[List[Tuple["Edge", Sign]], "Vertex"]:
         # If this can't find a way, it will create one.
         vertex = self
-        edges: List[Tuple["Edge", Literal[1] | Literal[-1]]] = []
+        edges: List[Tuple["Edge", Sign]] = []
         for gen, pow in word:
             s = sign(pow)
             for _ in range(abs(pow)):
