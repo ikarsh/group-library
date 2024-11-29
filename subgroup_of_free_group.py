@@ -82,12 +82,11 @@ class Edge:
         self.target.backward_edges[self.elem] = self
 
     def delete(self):
-        if (self.source.forward_edges.get(self.elem) is not self) or (
-            self.target.backward_edges.get(self.elem) is not self
+        if not (
+            self.source.forward_edges.pop(self.elem) is self
+            and self.target.backward_edges.pop(self.elem) is self
         ):
             raise ValueError(f"This shouldn't happen")
-        del self.source.forward_edges[self.elem]
-        del self.target.backward_edges[self.elem]
 
     def __hash__(self) -> int:
         return hash(self.idx)
@@ -272,6 +271,7 @@ class _SubgroupGraph:
 
                 new_gen = self.cycle_generators().get(edge)
                 if new_gen is not None:
+                    # Note that we are only adding the free generators of this group to result.
                     result.add(new_gen, sign)
 
         if vertex != self._identity_vertex:
@@ -288,7 +288,12 @@ class _SubgroupGraph:
                     return False
         return vertex == self._identity_vertex
 
-    def index(self) -> int:
+    def index(self) -> Optional[int]:
+        for v in self.vertices():
+            if not (
+                len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
+            ):
+                return None
         return len(self.vertices())
 
 
@@ -315,7 +320,7 @@ class SubgroupOfFreeGroup:
 
     @classmethod
     def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
-        # Use carefully! This does not verify input.
+        # Use carefully! Unlike from_relations, this does not verify the input is good.
         res = SubgroupOfFreeGroup(graph.free_group)
         res._graph = graph
         return res
@@ -348,26 +353,21 @@ class SubgroupOfFreeGroup:
         new_graph = self._graph.conjugate(elem)
         return SubgroupOfFreeGroup._from_graph(new_graph)
 
-    def is_normal(self) -> bool:
-        # TODO this is faster code that works in the case of finite index. Maybe it can be generalized?
-        # for v in self._graph.vertices:
-        #     if not (
-        #         len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
-        #     ):
-        #         return False
-        # for edge in self._graph.edges:
-        #     for gen in self.free_group.gens():
-        #         new_source = edge.source.forward_edges[gen].target
-        #         new_target = edge.target.forward_edges[gen].target
-        #         new_edge = new_source.forward_edges.get(gen)
-        #         assert new_edge is not None
-        #         if new_edge.target != new_target:
-        #             return False
-        # return True
+    def is_empty(self) -> bool:
+        return len(self._graph.vertices()) == 1 and len(self._graph.edges()) == 0
 
-        for gen in self.gens():
-            for a in self.free_group.gens():
-                if not self.contains_element(gen.conjugate(a)):
+    def is_normal(self) -> bool:
+        if self.is_empty():
+            return True
+        if self.index() is None:
+            return False
+        for edge in self._graph.edges():
+            for gen in self.free_group.gens():
+                new_source = edge.source.walk_edge(gen, 1)
+                new_target = edge.target.walk_edge(gen, 1)
+
+                assert new_source is not None and new_target is not None
+                if new_source.walk_edge(edge.elem, 1) != new_target:
                     return False
         return True
 
@@ -395,8 +395,8 @@ class SubgroupOfFreeGroup:
 
         raise RuntimeError(f"Normalization did not converge in {depth} steps")
 
-    def index(self) -> int:
-        assert self.is_normal()
+    def index(self) -> Optional[int]:
+        # Returns None is the index is infinite.
         return self._graph.index()
 
     def rank(self) -> int:

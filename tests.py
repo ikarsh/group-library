@@ -1,6 +1,6 @@
 import itertools
 from math import factorial, prod
-from typing import List
+from typing import List, Optional, TypeVar
 from finite_group_presentations import A, C, D, Q8, S, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
@@ -115,12 +115,29 @@ def test_normal_subgroup():
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
     ).is_normal()
 
+    # A subgroup of finite index which is not normal.
+    H = F2.subgroup([a, b**2, (a**2).conjugate(b), b.conjugate(b * a)])
+    assert H.index() == 3 and H.rank() == 4 and not H.is_normal()
+
+    # Generate S3
+    assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()
+
+
+T = TypeVar("T")
+
+
+def some(x: Optional[T]) -> T:
+    assert x is not None
+    return x
+
 
 def test_finite_groups():
     # This verifies the sizes of finite groups, and that the ranks of the kernels for them satisfy the formula:
     # rank(N_G) == |G| * (n - 1) + 1, where N_G = ker(F_n -> G).
     def verify_formula(N: SubgroupOfFreeGroup):
-        assert N.rank() == N.index() * (N.free_group.rank() - 1) + 1
+        idx = N.index()
+        assert idx is not None
+        assert N.rank() == idx * (N.free_group.rank() - 1) + 1
 
     for n in range(2, 10):
         Cn = C(n)
@@ -153,7 +170,7 @@ def test_finite_groups():
         [Q8(), C(2)],
     ]:
         P = dir_prod(gps)
-        assert P.index() == prod((g.index() for g in gps))
+        assert P.index() == prod((some(g.index()) for g in gps))
         verify_formula(P)
 
 
