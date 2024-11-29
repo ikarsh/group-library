@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
@@ -20,6 +20,38 @@ class Vertex:
     def delete(self):
         if self.forward_edges or self.backward_edges:
             raise ValueError("Cannot delete vertex with edges")
+
+    def observe_direction(
+        self, gen: FreeGroupGenerator, sign: int
+    ) -> Optional[Tuple["Edge", "Vertex"]]:
+        if sign == 1:
+            edge = self.forward_edges.get(gen)
+            if edge is None:
+                return None
+            return edge, edge.target
+        else:
+            edge = self.backward_edges.get(gen)
+            if edge is None:
+                return None
+            return edge, edge.source
+
+    def walk_edge(self, gen: FreeGroupGenerator, sign: int) -> Optional["Vertex"]:
+        dir = self.observe_direction(gen, sign)
+        return None if dir is None else dir[1]
+
+    def walk_edge_violent(self, gen: FreeGroupGenerator, sign: int) -> "Vertex":
+        # If this can't find a way, it will create one.
+        v = self.walk_edge(gen, sign)
+        if v is not None:
+            return v
+        if sign == 1:
+            new_vertex = Vertex(self.elem * gen)
+            Edge(self, gen, new_vertex)
+            return new_vertex
+        else:
+            new_vertex = Vertex(self.elem * ~gen)
+            Edge(new_vertex, gen, self)
+            return new_vertex
 
     def __lt__(self, other: "Vertex") -> bool:
         return self.elem < other.elem
@@ -75,30 +107,58 @@ class _SubgroupGraph:
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         self._identity_vertex = Vertex(free_group.identity())
-        self._vertices: Set[Vertex] = set((self._identity_vertex,))
-        self._edges: Set[Edge] = set()
 
         self.reset_cache()
+
+    def copy(self) -> "_SubgroupGraph":
+        new_graph = _SubgroupGraph(self.free_group)
+        vertex_mapping = {self._identity_vertex: new_graph._identity_vertex}
+        for vertex in self.vertices():
+            if vertex != self._identity_vertex:
+                vertex_mapping[vertex] = Vertex(vertex.elem)
+        for edge in self.edges():
+            Edge(vertex_mapping[edge.source], edge.elem, vertex_mapping[edge.target])
+        return new_graph
+
+    def conjugate(self, elem: FreeGroupElement) -> "_SubgroupGraph":
+        new_graph = self.copy()
+        vertex = self._identity_vertex
+        for gen, pow in ~elem:
+            vertex = vertex.walk_edge_violent(gen, pow)
+        new_graph._identity_vertex = vertex
+        return new_graph
 
     def reset_cache(self):
         self._cycle_generators: Optional[Dict[Edge, FreeGroupElement]] = None
         self._coset_representatives: Optional[List[FreeGroupElement]] = None
+        self._vertices: Optional[Set[Vertex]] = None
+        self._edges: Optional[Set[Edge]] = None
 
-    def add_vertex(self, elem: FreeGroupElement) -> Vertex:
-        new_vertex = Vertex(elem)
-        self._vertices.add(new_vertex)
-        return new_vertex
+    def vertices(self) -> Set[Vertex]:
+        if self._vertices is None:
+            self._vertices = set((self._identity_vertex,))
+            unchecked = set((self._identity_vertex,))
+            while unchecked:
+                vertex = unchecked.pop()
+                for edge in vertex.forward_edges.values():
+                    if not edge.target in self._vertices:
+                        unchecked.add(edge.target)
+                        self._vertices.add(edge.target)
+                for edge in vertex.backward_edges.values():
+                    if not edge.source in self._vertices:
+                        unchecked.add(edge.source)
+                        self._vertices.add(edge.source)
+        return self._vertices.copy()
 
-    def remove_vertex(self, vertex: Vertex):
-        self._vertices.remove(vertex)
-        vertex.delete()
-
-    def add_edge(self, source: Vertex, elem: FreeGroupGenerator, target: Vertex):
-        self._edges.add(Edge(source, elem, target))
-
-    def remove_edge(self, edge: Edge):
-        self._edges.remove(edge)
-        edge.delete()
+    def edges(self) -> Set[Edge]:
+        if self._edges is None:
+            self._edges = set()
+            for vertex in self.vertices():
+                for edge in vertex.forward_edges.values():
+                    self._edges.add(edge)
+                for edge in vertex.backward_edges.values():
+                    self._edges.add(edge)
+        return self._edges.copy()
 
     def push_word(self, word: FreeGroupElement):
         self.reset_cache()
@@ -106,67 +166,50 @@ class _SubgroupGraph:
         for gen, pow in word:
             sign = 1 if pow > 0 else -1
             for _ in range(abs(pow)):
-                if sign == 1:
-                    if vertex.forward_edges.get(gen) is not None:
-                        vertex = vertex.forward_edges[gen].target
-                    else:
-                        new_vertex = self.add_vertex(vertex.elem * gen)
-                        self.add_edge(vertex, gen, new_vertex)
-                        vertex = new_vertex
-                else:
-                    if vertex.backward_edges.get(gen) is not None:
-                        vertex = vertex.backward_edges[gen].source
-                    else:
-                        new_vertex = self.add_vertex(vertex.elem * ~gen)
-                        self.add_edge(new_vertex, gen, vertex)
-                        vertex = new_vertex
+                vertex = vertex.walk_edge_violent(gen, sign)
 
-        self.glue(vertex, self._identity_vertex)
-
-    def glue(self, v0: Vertex, v1: Vertex):
-        # Replaces v0 by v1, recursively.
-        glues = [(v0, v1)]
+        # Now glue vertex to the identity vertex, recursively.
+        glues = [(vertex, self._identity_vertex)]
 
         while glues:
             v0, v1 = glues.pop()
             if v0 == v1:
                 continue
 
-            assert v0 in self._vertices and v1 in self._vertices
             if v0.elem < v1.elem:
                 v0, v1 = v1, v0
 
             for gen, edge in list(v0.forward_edges.items()):
                 assert edge.elem == gen
-                self.remove_edge(edge)
-                v1_next = v1.forward_edges.get(gen)
+                edge.delete()
+                v1_next = v1.walk_edge(gen, 1)
 
                 # Annoying edgecase
                 if edge.target == v0:
                     v1_prev = v1.backward_edges.get(gen)
                     if v1_next is not None:
-                        glues.append((v1, v1_next.target))
+                        glues.append((v1, v1_next))
                     if v1_prev is not None:
                         glues.append((v1_prev.source, v1))
                     if v1_prev is None and v1_next is None:
-                        self.add_edge(v1, gen, v1)
+                        Edge(v1, gen, v1)
                 else:
                     if v1_next is None:
-                        self.add_edge(v1, gen, edge.target)
+                        Edge(v1, gen, edge.target)
                     else:
-                        glues.append((edge.target, v1_next.target))
+                        glues.append((edge.target, v1_next))
 
             for gen, edge in list(v0.backward_edges.items()):
-                self.remove_edge(edge)
-                v1_prev = v1.backward_edges.get(gen)
+                edge.delete()
+                v1_prev = v1.walk_edge(gen, -1)
                 # The edgecase does not happen here.
 
                 if v1_prev is None:
-                    self.add_edge(edge.source, gen, v1)
+                    Edge(edge.source, gen, v1)
                 else:
-                    glues.append((edge.source, v1_prev.source))
+                    glues.append((edge.source, v1_prev))
 
-            self.remove_vertex(v0)
+            v0.delete()
             for i, pair in list(enumerate(glues)):
                 if pair[0] == pair[1] == v0:
                     glues[i] = (v1, v1)
@@ -178,17 +221,19 @@ class _SubgroupGraph:
         # What this function actually does is give every vertex a minimal representative.
         # Minimality is taken with respect to length and then lexicographically.
         # This ensures a spanning tree is created.
-        uncleared_vertices = set(self._vertices)
+        uncleared_vertices = self.vertices().copy()
 
         while uncleared_vertices:
             v = uncleared_vertices.pop()
             for edge in v.forward_edges.values():
-                if edge.source.elem * edge.elem < edge.target.elem:
-                    edge.target.elem = edge.source.elem * edge.elem
+                suggestion = edge.source.elem * edge.elem
+                if suggestion < edge.target.elem:
+                    edge.target.elem = suggestion
                     uncleared_vertices.add(edge.target)
             for edge in v.backward_edges.values():
-                if edge.target.elem * ~edge.elem < edge.source.elem:
-                    edge.source.elem = edge.target.elem * ~edge.elem
+                suggestion = edge.target.elem * ~edge.elem
+                if suggestion < edge.source.elem:
+                    edge.source.elem = suggestion
                     uncleared_vertices.add(edge.source)
 
         # assert (
@@ -200,7 +245,7 @@ class _SubgroupGraph:
             self._relabel()
             self._cycle_generators = {
                 edge: value
-                for edge in self._edges
+                for edge in self.edges()
                 if not (
                     value := edge.source.elem * edge.elem * ~edge.target.elem
                 ).is_identity()
@@ -210,7 +255,7 @@ class _SubgroupGraph:
     def coset_representatives(self) -> List[FreeGroupElement]:
         if self._coset_representatives is None:
             self._relabel()
-            self._coset_representatives = [v.elem for v in self._vertices]
+            self._coset_representatives = [v.elem for v in self.vertices()]
         return self._coset_representatives
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
@@ -218,24 +263,16 @@ class _SubgroupGraph:
         result: Word[FreeGroupElement] = Word().identity()
         for gen, pow in elem:
             sign = 1 if pow > 0 else -1
-            if sign == 1:
-                for _ in range(pow):
-                    edge = vertex.forward_edges.get(gen)
-                    if edge is None:
-                        return None
-                    new_gen = self.cycle_generators().get(edge)
-                    if new_gen is not None:
-                        result.add(new_gen)
-                    vertex = edge.target
-            else:
-                for _ in range(-pow):
-                    edge = vertex.backward_edges.get(gen)
-                    if edge is None:
-                        return None
-                    new_gen = self.cycle_generators().get(edge)
-                    if new_gen is not None:
-                        result.remove(new_gen)
-                    vertex = edge.source
+
+            for _ in range(abs(pow)):
+                dir = vertex.observe_direction(gen, sign)
+                if dir is None:
+                    return None
+                edge, vertex = dir
+
+                new_gen = self.cycle_generators().get(edge)
+                if new_gen is not None:
+                    result.add(new_gen, sign)
 
         if vertex != self._identity_vertex:
             return None
@@ -245,36 +282,20 @@ class _SubgroupGraph:
         vertex = self._identity_vertex
         for gen, pow in elem:
             sign = 1 if pow > 0 else -1
-            if sign == 1:
-                for _ in range(pow):
-                    edge = vertex.forward_edges.get(gen)
-                    if edge is None:
-                        return False
-                    vertex = edge.target
-            else:
-                for _ in range(-pow):
-                    edge = vertex.backward_edges.get(gen)
-                    if edge is None:
-                        return False
-                    vertex = edge.source
+            for _ in range(abs(pow)):
+                vertex = vertex.walk_edge(gen, sign)
+                if vertex is None:
+                    return False
         return vertex == self._identity_vertex
 
     def index(self) -> int:
-        return len(self._vertices)
+        return len(self.vertices())
 
 
 class SubgroupOfFreeGroup:
     def __init__(self, free_group: FreeGroup):
         self._graph = _SubgroupGraph(free_group)
-        self.reset_cache()
         self.free_group = free_group
-
-    def reset_cache(self):
-        # These are the edges outside of the spanning tree. They correspond to the generators.
-        self._special_edges: Optional[List[Edge]] = None
-
-        # This is the correspondence.
-        self._gens_from_edges: Optional[Dict[Edge, FreeGroupElement]] = None
 
     @classmethod
     def from_relations(
@@ -291,7 +312,13 @@ class SubgroupOfFreeGroup:
 
     def push_word(self, word: FreeGroupElement):
         self._graph.push_word(word)
-        self.reset_cache()
+
+    @classmethod
+    def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
+        # Use carefully! This does not verify input.
+        res = SubgroupOfFreeGroup(graph.free_group)
+        res._graph = graph
+        return res
 
     def __repr__(self) -> str:
         return f"Subgroup of {self.free_group} with free basis {self.gens()}"
@@ -318,10 +345,8 @@ class SubgroupOfFreeGroup:
         return self.contains_subgroup(other) and other.contains_subgroup(self)
 
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup.from_relations(
-            self.free_group,
-            [gen.conjugate(elem) for gen in self.gens()],
-        )
+        new_graph = self._graph.conjugate(elem)
+        return SubgroupOfFreeGroup._from_graph(new_graph)
 
     def is_normal(self) -> bool:
         # TODO this is faster code that works in the case of finite index. Maybe it can be generalized?

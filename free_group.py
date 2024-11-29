@@ -12,8 +12,6 @@ from typing import (
 
 from word import Word, sign
 
-from word import commutator as word_commutator
-
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
 
@@ -208,4 +206,4 @@ if TYPE_CHECKING:
     def commutator(a: FreeGroupElement, b: FreeGroupElement) -> FreeGroupElement: ...
 
 else:
-    commutator = word_commutator
+    from word import commutator
