@@ -12,6 +12,8 @@ from typing import (
 
 from word import Word, sign
 
+from word import commutator as word_commutator
+
 if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup
 
@@ -49,6 +51,7 @@ class FreeGroup:
         return len(self.gens())
 
     def __iter__(self, max_len: Optional[int] = None) -> Iterator["FreeGroupElement"]:
+        # Iterates over the words in the group, up to a certain length.
         def paths(w: FreeGroupElement, len: int) -> Iterator[FreeGroupElement]:
             if len == 0:
                 yield w
@@ -103,6 +106,7 @@ class FreeGroupElement(Word["FreeGroupGenerator"]):
         super().__init__()
 
     def identity(self) -> "FreeGroupElement":
+        # Overrides Word.identity, to make sure computations return the correct type.
         return FreeGroupElement(self.free_group)
 
     def add(self, let: "FreeGroupGenerator", pow: int = 1):
@@ -112,7 +116,7 @@ class FreeGroupElement(Word["FreeGroupGenerator"]):
 
     def lexicographically_lt(self, other: "FreeGroupElement") -> bool:
         if not self.free_group == other.free_group:
-            raise ValueError("Cannot compare words from different free groups.")
+            raise ValueError("Cannot compare elements from different free groups.")
         n = min(len(self.word), len(other.word))
         for i in range(n):
             (let1, pow1), (let2, pow2) = self.word[i], other.word[i]
@@ -199,8 +203,9 @@ class FreeGroupGenerator(FreeGroupElement):
         return self.name
 
 
-def commutator(
-    a: "FreeGroupElement",
-    b: "FreeGroupElement",
-) -> "FreeGroupElement":
-    return a * b * ~a * ~b
+if TYPE_CHECKING:
+
+    def commutator(a: FreeGroupElement, b: FreeGroupElement) -> FreeGroupElement: ...
+
+else:
+    commutator = word_commutator

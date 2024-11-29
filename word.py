@@ -15,16 +15,14 @@ def sign(n: int) -> Literal[-1, 1]:
     raise ValueError(f"Sign of 0 is undefined")
 
 
-# class SupportsLT(Protocol):
-#     def __lt__(self, other: "SupportsLT") -> bool: ...
-
-
 T = TypeVar("T")
 
 
 class Word(Generic[T]):
     # Words should always be reduced.
+
     # Do not access the __init__ directly, only through the identity method.
+    # That way, when applied to subclasses, the correct type is returned.
     def __init__(self):
         self.word: List[Tuple[T, int]] = []
 
@@ -45,6 +43,12 @@ class Word(Generic[T]):
     def __imul__(self, other: "Word[T]"):
         for let, pow in other.word:
             self.add(let, pow)
+        return self
+
+    def __itruediv__(self, other: "Word[T]"):
+        # To avoid creating the ~other object.
+        for let, pow in other.word[::-1]:
+            self.add(let, -pow)
         return self
 
     def __mul__(self, other: "Word[T]") -> "Word[T]":
@@ -107,8 +111,19 @@ class Word(Generic[T]):
         return self.word[-1][0]
 
     def conjugate(self, other: "Word[T]") -> "Word[T]":
-        return self.identity() * other * self * ~other
+        # To avoid creating the partial words separately.
+        res = self.identity()
+        res *= other
+        res *= self
+        res /= other
+        return res
 
 
 def commutator(a: Word[T], b: Word[T]) -> Word[T]:
-    return a * b * ~a * ~b
+    # To avoid creating the partial words separately.
+    res = a.identity()
+    res *= a
+    res *= b
+    res /= a
+    res /= b
+    return res
