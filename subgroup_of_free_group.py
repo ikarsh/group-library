@@ -359,6 +359,9 @@ class SubgroupOfFreeGroup:
             raise ValueError("Subgroup doesn't have finite index.")
         return self._graph.coset_representatives()
 
+    def left_coset_representatives(self) -> List[FreeGroupElement]:
+        return [~elem for elem in self.right_coset_representatives()]
+
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         return self._graph.express(elem)
 

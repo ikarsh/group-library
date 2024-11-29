@@ -129,7 +129,7 @@ def test_finite_index_subgroup():
     assert H == H.conjugate(a) and H != H.conjugate(b)
     assert H.normalization() == H.conjugate(b).normalization()
 
-    conjugates = [H.conjugate(~g) for g in H.right_coset_representatives()]
+    conjugates = [H.conjugate(g) for g in H.left_coset_representatives()]
     for conj1, conj2 in itertools.combinations(conjugates, 2):
         assert conj1 != conj2
 
