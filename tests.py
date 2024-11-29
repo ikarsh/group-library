@@ -119,6 +119,8 @@ def test_normal_subgroup():
     # A subgroup of finite index which is not normal.
     H = F2.subgroup([a, b**2, (a**2).conjugate(b), b.conjugate(b * a)])
     assert H.index() == 3 and H.rank() == 4 and not H.is_normal()
+    assert H == H.conjugate(a) and H != H.conjugate(b)
+    assert H.normalization() == H.conjugate(b).normalization()
 
     # Generate S3
     assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()

@@ -36,23 +36,24 @@ class Vertex:
                 return None
             return edge, edge.source
 
+    def observe_direction_violent(
+        self, gen: FreeGroupGenerator, sign: int
+    ) -> Tuple["Edge", "Vertex"]:
+        # If this can't find a way, it will create one.
+        dir = self.observe_direction(gen, sign)
+        if dir is not None:
+            return dir
+        if sign == 1:
+            new_vertex = Vertex(self.elem * gen)
+            edge = Edge(self, gen, new_vertex)
+        else:
+            new_vertex = Vertex(self.elem * ~gen)
+            edge = Edge(new_vertex, gen, self)
+        return edge, new_vertex
+
     def walk_edge(self, gen: FreeGroupGenerator, sign: int) -> Optional["Vertex"]:
         dir = self.observe_direction(gen, sign)
         return None if dir is None else dir[1]
-
-    def walk_edge_violent(self, gen: FreeGroupGenerator, sign: int) -> "Vertex":
-        # If this can't find a way, it will create one.
-        v = self.walk_edge(gen, sign)
-        if v is not None:
-            return v
-        if sign == 1:
-            new_vertex = Vertex(self.elem * gen)
-            Edge(self, gen, new_vertex)
-            return new_vertex
-        else:
-            new_vertex = Vertex(self.elem * ~gen)
-            Edge(new_vertex, gen, self)
-            return new_vertex
 
     def walk_word(
         self, word: FreeGroupElement
@@ -66,6 +67,19 @@ class Vertex:
                 if dir is None:
                     return None
                 edge, vertex = dir
+                edges.append((edge, s))
+        return edges, vertex
+
+    def walk_word_violent(
+        self, word: FreeGroupElement
+    ) -> Tuple[List[Tuple["Edge", Literal[1] | Literal[-1]]], "Vertex"]:
+        # If this can't find a way, it will create one.
+        vertex = self
+        edges: List[Tuple["Edge", Literal[1] | Literal[-1]]] = []
+        for gen, pow in word:
+            s = sign(pow)
+            for _ in range(abs(pow)):
+                edge, vertex = vertex.observe_direction_violent(gen, s)
                 edges.append((edge, s))
         return edges, vertex
 
@@ -137,10 +151,13 @@ class _SubgroupGraph:
 
     def conjugate(self, elem: FreeGroupElement) -> "_SubgroupGraph":
         new_graph = self.copy()
-        vertex = self._identity_vertex
-        for gen, pow in ~elem:
-            vertex = vertex.walk_edge_violent(gen, pow)
+        _edges, vertex = new_graph._identity_vertex.walk_word_violent(~elem)
         new_graph._identity_vertex = vertex
+        for v in new_graph.vertices():
+            v.elem = elem * v.elem
+
+        new_graph._identity_vertex.elem = self.free_group.identity()
+        new_graph._relabel()
         return new_graph
 
     def reset_cache(self):
@@ -175,13 +192,13 @@ class _SubgroupGraph:
                     self._edges.add(edge)
         return self._edges.copy()
 
+    def __repr__(self) -> str:
+        return repr(self.edges())
+
     def push_word(self, word: FreeGroupElement):
         self.reset_cache()
         vertex = self._identity_vertex
-        for gen, pow in word:
-            sign = 1 if pow > 0 else -1
-            for _ in range(abs(pow)):
-                vertex = vertex.walk_edge_violent(gen, sign)
+        _edges, vertex = vertex.walk_word_violent(word)
 
         # Now glue vertex to the identity vertex, recursively.
         glues = [(vertex, self._identity_vertex)]
