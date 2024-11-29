@@ -143,6 +143,9 @@ def test_finite_index_subgroup():
     assert H.normalization() == H.conjugate(b).normalization()
 
     conjugates = [H.conjugate(g) for g in H.left_coset_representatives()]
+    for conj in conjugates:
+        assert conj.index() == H.index()
+
     for conj1, conj2 in itertools.combinations(conjugates, 2):
         assert conj1 != conj2
 
@@ -150,6 +153,9 @@ def test_finite_index_subgroup():
         for conj in conjugates:
             assert conj.conjugate(gen) in conjugates
             assert conj.conjugate(~gen) in conjugates
+
+    I = F2.intersect_subgroups(conjugates)
+    assert I.index() % H.index() == 0 and H.contains_subgroup(I) and I.is_normal()
 
 
 def test_finite_groups():

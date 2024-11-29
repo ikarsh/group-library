@@ -1,10 +1,10 @@
-from typing import Dict, List, Literal, Optional, Set, Tuple
+from typing import Dict, List, Literal, Optional, Sequence, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
 )
-from utils import sign
+from utils import classonlymethod, panic, sign
 from word import Word
 
 Sign = Literal[-1, 1]
@@ -329,6 +329,54 @@ class _SubgroupGraph:
             raise RuntimeError("Subgroup doesn't have finite index.")
         return len(self.vertices())
 
+    @classonlymethod
+    def intersect_graphs(
+        cls, free_group: FreeGroup, graphs: Sequence["_SubgroupGraph"]
+    ) -> "_SubgroupGraph":
+        res = _SubgroupGraph(free_group)
+
+        mapping_back = {tuple(g._identity_vertex for g in graphs): res._identity_vertex}
+
+        uncleared = set(
+            (
+                (
+                    res._identity_vertex,
+                    tuple(g._identity_vertex for g in graphs),
+                ),
+            )
+        )
+        while uncleared:
+            vertex, images = uncleared.pop()
+            # images = mapping[vertex]
+            for gen in free_group.gens():
+                for s in (-1, 1):
+                    if vertex.observe_direction(gen, s) is not None:
+                        continue
+                    individual_directions = tuple(
+                        v.observe_direction(gen, s) for v in images
+                    )
+                    if any(v is None for v in individual_directions):
+                        continue
+
+                    individual_images = tuple(
+                        (dir[-1] if dir is not None else Vertex(panic()))
+                        for dir in individual_directions
+                    )
+
+                    if individual_images in mapping_back:
+                        new_vertex = mapping_back[individual_images]
+                    else:
+                        new_vertex = Vertex(vertex.elem * gen**s)
+                        mapping_back[individual_images] = new_vertex
+                        uncleared.add((new_vertex, individual_images))
+
+                    if s == 1:
+                        Edge(vertex, gen, new_vertex)
+                    else:
+                        Edge(new_vertex, gen, vertex)
+
+        return res
+
 
 class SubgroupOfFreeGroup:
     def __init__(self, free_group: FreeGroup):
@@ -437,3 +485,21 @@ class SubgroupOfFreeGroup:
 
     def rank(self) -> int:
         return len(self.gens())
+
+    @classonlymethod
+    def join_subgroups(
+        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup.from_relations(
+            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
+        )
+
+    @classonlymethod
+    def intersect_subgroups(
+        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup._from_graph(
+            _SubgroupGraph.intersect_graphs(
+                free_group, [subgroup._graph for subgroup in subgroups]
+            )
+        )

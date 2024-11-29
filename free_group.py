@@ -92,9 +92,17 @@ class FreeGroup:
     ) -> "SubgroupOfFreeGroup":
         from subgroup_of_free_group import SubgroupOfFreeGroup
 
-        return SubgroupOfFreeGroup.from_relations(
-            self, [gen for subgroup in subgroups for gen in subgroup.gens()]
-        )
+        return SubgroupOfFreeGroup.join_subgroups(self, subgroups)
+        # return SubgroupOfFreeGroup.from_relations(
+        #     self, [gen for subgroup in subgroups for gen in subgroup.gens()]
+        # )
+
+    def intersect_subgroups(
+        self, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        from subgroup_of_free_group import SubgroupOfFreeGroup
+
+        return SubgroupOfFreeGroup.intersect_subgroups(self, subgroups)
 
 
 @total_ordering
