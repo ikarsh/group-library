@@ -1,6 +1,6 @@
 import itertools
 from typing import List, Tuple
-from free_group import FreeGroup, FreeGroupElement, commutator
+from free_group import FreeGroup, FreeGroupElement, FreeGroupGenerator, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
@@ -20,20 +20,21 @@ def dir_prod(gps: List[SubgroupOfFreeGroup]) -> SubgroupOfFreeGroup:
     )
     relations: List[FreeGroupElement] = []
 
-    def gens(i: int) -> Tuple[FreeGroupElement, ...]:
-        return tuple(
-            F.elem_from_str(f"a{i}_{j}") for j in range(gps[i].free_group.rank())
-        )
+    gens: List[Tuple[FreeGroupGenerator, ...]] = []
+    idx = 0
+    for i in range(len(gps)):
+        gens.append(F.gens()[idx : idx + gps[i].free_group.rank()])
+        idx += gps[i].free_group.rank()
 
     for i, gp in enumerate(gps):
         for gen in gp.gens():
-            relations.append(gen.substitute(F, gens(i)))
+            relations.append(gen.substitute(F, gens[i]))
 
     for (i, gpi), (j, gpj) in itertools.combinations(enumerate(gps), 2):
         for geni in gpi.free_group.gens():
             for genj in gpj.free_group.gens():
                 relations.append(
-                    commutator(geni.substitute(F, gens(i)), genj.substitute(F, gens(j)))
+                    commutator(geni.substitute(F, gens[i]), genj.substitute(F, gens[j]))
                 )
 
     return F.normal_subgroup(relations)

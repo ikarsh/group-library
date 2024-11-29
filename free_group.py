@@ -20,19 +20,9 @@ class FreeGroup:
     def __init__(self, _gens: Tuple[str, ...] | int, name: Optional[str] = None):
         self._name = name
         if isinstance(_gens, int):
-            if _gens <= 26:
-                gen_names: Tuple[str, ...] = tuple(
-                    chr(ord("a") + i) for i in range(_gens)
-                )
-            else:
-                raise NotImplementedError("Too many generators")
+            gen_names: Tuple[str, ...] = tuple(chr(ord("a") + i) for i in range(_gens))
         else:
             gen_names = _gens
-        for letter0, letter1 in itertools.combinations(gen_names, 2):
-            if letter0.startswith(letter1) or letter1.startswith(letter0):
-                raise ValueError(
-                    f"Generators cannot be prefixes of each other: {letter0}, {letter1}"
-                )
         self._gens = tuple(
             object.__new__(FreeGroupGenerator) for _ in range(len(gen_names))
         )
@@ -73,40 +63,6 @@ class FreeGroup:
             if max_len and len > max_len:
                 break
             yield from paths(self.identity(), len)
-
-    def elem_from_str(self, s_: str) -> "FreeGroupElement":
-        word = self.identity()
-        s = s_.replace(" ", "")
-        while s:
-            for gen in self.gens():
-                if s.startswith(gen.name):
-                    s = s[len(gen.name) :]
-                    if s.startswith("^"):
-                        s = s[1:]
-                        power = 0
-                        sign = 1
-                        if s.startswith("-"):
-                            s = s[1:]
-                            sign = -1
-                        if not s or not s[0].isdigit() or s[0] == "0":
-                            raise ValueError(f"Invalid power in {s_}")
-                        while s and s[0].isdigit():
-                            power = 10 * power + int(s[0])
-                            s = s[1:]
-                        power *= sign
-                    else:
-                        power = 1
-
-                    if word.last_letter() == gen:
-                        raise ValueError(f"{s_} was given in non-reduced form.")
-                    assert power != 0
-
-                    word.add(gen, power)
-                    break
-            else:
-                raise ValueError(f"Invalid generator in {s_}")
-
-        return word
 
     def subgroup(
         self, relations_: Sequence["FreeGroupElement"]
