@@ -132,6 +132,7 @@ class Edge:
         return f"{self.source} -- {self.elem} --> {self.target}"
 
 
+# Can be merged with the Subgroup class..
 class _SubgroupGraph:
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group

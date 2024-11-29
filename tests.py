@@ -1,9 +1,22 @@
 import itertools
 from math import factorial, prod
-from typing import List
-from finite_group_presentations import A, C, D, Q8, S, dir_prod
+from typing import TYPE_CHECKING, List
+
+
+from finite_group_presentations import A, C, D, PSL2, Q8, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
+
+if TYPE_CHECKING:
+
+    def factor(n: int) -> dict[int, int]: ...
+    def euler_phi(n: int) -> int: ...
+
+else:
+    from sympy import factorint, totient
+
+    euler_phi = totient
+    factor = factorint
 
 
 def test_free_group_identities():
@@ -178,6 +191,19 @@ def test_finite_groups():
         P = dir_prod(gps)
         assert P.index() == prod((g.index() for g in gps))
         verify_formula(P)
+
+    for n in (3, 5):  # Sadly these tests are slow for larger n.
+        SL2n = SL2(n)
+        PSL2n = PSL2(n)
+
+        SL2n_size = prod(
+            (p ** (2 * n) - p ** (2 * n - 2)) * (p ** (2 * n) - p ** (2 * n - 1))
+            for p, n in factor(n).items()
+        ) // euler_phi(n)
+
+        assert SL2n.index() == SL2n_size
+        assert PSL2n.index() == SL2n_size // 2
+        verify_formula(SL2n)
 
 
 def test_all():
