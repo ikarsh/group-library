@@ -1,19 +1,6 @@
-from typing import Generic, Iterator, Literal, TypeVar
-from typing import (
-    List,
-    Literal,
-    Optional,
-    Tuple,
-)
+from typing import Generic, Iterator, TypeVar, List, Optional, Tuple
 
-
-def sign(n: int) -> Literal[-1, 1]:
-    if n < 0:
-        return -1
-    if n > 0:
-        return 1
-    raise ValueError(f"Sign of 0 is undefined")
-
+from utils import sign
 
 T = TypeVar("T")
 

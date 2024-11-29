@@ -1,9 +1,10 @@
 import itertools
 from math import factorial, prod
-from typing import List, Optional, TypeVar
+from typing import List
 from finite_group_presentations import A, C, D, Q8, S, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from subgroup_of_free_group import SubgroupOfFreeGroup
+from utils import unwrap
 
 
 def test_free_group_identities():
@@ -123,14 +124,6 @@ def test_normal_subgroup():
     assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()
 
 
-T = TypeVar("T")
-
-
-def some(x: Optional[T]) -> T:
-    assert x is not None
-    return x
-
-
 def test_finite_groups():
     # This verifies the sizes of finite groups, and that the ranks of the kernels for them satisfy the formula:
     # rank(N_G) == |G| * (n - 1) + 1, where N_G = ker(F_n -> G).
@@ -170,7 +163,7 @@ def test_finite_groups():
         [Q8(), C(2)],
     ]:
         P = dir_prod(gps)
-        assert P.index() == prod((some(g.index()) for g in gps))
+        assert P.index() == prod((unwrap(g.index()) for g in gps))
         verify_formula(P)
 
 
