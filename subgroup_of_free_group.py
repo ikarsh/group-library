@@ -415,14 +415,15 @@ class SubgroupOfFreeGroup:
         gens = [a**s for a in self.free_group.gens() for s in (-1, 1)]
 
         while True:
-            if res.is_normal():
-                return res
+            normal = True
             for a in res.gens():
                 for b in gens:
                     a_conj = a.conjugate(b)
                     if not res.contains_element(a_conj):
                         res.push_word(a_conj)
-                        break
+                        normal = False
+            if normal:
+                return res
 
     def index(self) -> int:
         # Raises error if the index is infinite.
