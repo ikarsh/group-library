@@ -133,8 +133,10 @@ def test_finite_index_subgroup():
     for conj1, conj2 in itertools.combinations(conjugates, 2):
         assert conj1 != conj2
 
-    for elem in [a * ~b, b**7, a**3 * b ** (-2) * a * b**2]:
-        assert H.conjugate(elem) in conjugates
+    for gen in F2.gens():
+        for conj in conjugates:
+            assert conj.conjugate(gen) in conjugates
+            assert conj.conjugate(~gen) in conjugates
 
 
 def test_finite_groups():
