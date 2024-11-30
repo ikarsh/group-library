@@ -432,6 +432,14 @@ class SubgroupOfFreeGroup:
             return False
         return self.contains_subgroup(other) and other.contains_subgroup(self)
 
+    @classonlymethod
+    def join_subgroups(
+        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup.from_relations(
+            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
+        )
+
     @classmethod
     def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
         # Use carefully! Unlike from_relations, this does not verify the input is good.
@@ -442,9 +450,24 @@ class SubgroupOfFreeGroup:
     def copy(self) -> "SubgroupOfFreeGroup":
         return SubgroupOfFreeGroup._from_graph(self._graph.copy())
 
+    @classonlymethod
+    def intersect_subgroups(
+        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup._from_graph(
+            _SubgroupGraph.intersect_graphs(
+                free_group, [subgroup._graph for subgroup in subgroups]
+            )
+        )
+
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
         new_graph = self._graph.conjugate(elem)
         return SubgroupOfFreeGroup._from_graph(new_graph)
+
+    def core(self) -> "SubgroupOfFreeGroup":
+        return self.free_group.intersect_subgroups(
+            [self.conjugate(x) for x in self.left_coset_representatives()]
+        )
 
     def is_empty(self) -> bool:
         return len(self._graph.vertices()) == 1 and len(self._graph.edges()) == 0
@@ -485,21 +508,3 @@ class SubgroupOfFreeGroup:
 
     def rank(self) -> int:
         return len(self.gens())
-
-    @classonlymethod
-    def join_subgroups(
-        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
-    ) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup.from_relations(
-            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
-        )
-
-    @classonlymethod
-    def intersect_subgroups(
-        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
-    ) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup._from_graph(
-            _SubgroupGraph.intersect_graphs(
-                free_group, [subgroup._graph for subgroup in subgroups]
-            )
-        )

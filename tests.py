@@ -136,26 +136,34 @@ def test_finite_index_subgroup():
     F2 = FreeGroup(("a", "b"))
     a, b = F2.gens()
 
-    # A subgroup of finite index which is not normal.
-    H = F2.subgroup([a, b**2, (a**2).conjugate(b), b.conjugate(b * a)])
-    assert H.index() == 3 and H.rank() == 4 and not H.is_normal()
-    assert H == H.conjugate(a) and H != H.conjugate(b)
-    assert H.normalization() == H.conjugate(b).normalization()
+    # This is S5.
+    N = F2.normal_subgroup(
+        [a**2, b**5, (a * b) ** 4, commutator(a, b) ** 3, commutator(a, b**2) ** 2]
+    )
+    assert N.index() == 120 and N.is_normal()
+
+    H = F2.subgroup(N.gens() + [a * b * a])
+    assert H.index() == 24 and H.contains_subgroup(N) and not H.is_normal()
 
     conjugates = [H.conjugate(g) for g in H.left_coset_representatives()]
-    for conj in conjugates:
-        assert conj.index() == H.index()
+    assert H in conjugates
 
-    for conj1, conj2 in itertools.combinations(conjugates, 2):
-        assert conj1 != conj2
+    # There are six 5-syllow subgroups of S5!
+    distinct: List[SubgroupOfFreeGroup] = []
+    for conj in conjugates:
+        if conj not in distinct:
+            distinct.append(conj)
+    assert len(distinct) == 6
+
+    for conj in conjugates:
+        assert conj.index() == 24 and conj.contains_subgroup(N) and not conj.is_normal()
 
     for gen in F2.gens():
         for conj in conjugates:
             assert conj.conjugate(gen) in conjugates
             assert conj.conjugate(~gen) in conjugates
 
-    I = F2.intersect_subgroups(conjugates)
-    assert I.index() % H.index() == 0 and H.contains_subgroup(I) and I.is_normal()
+    assert H.core() == F2.intersect_subgroups(conjugates) == N
 
 
 def test_finite_groups():
