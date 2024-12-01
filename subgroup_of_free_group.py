@@ -134,37 +134,16 @@ class Edge:
         return f"{self.source} -- {self.elem} --> {self.target}"
 
 
-# Can be merged with the Subgroup class..
-class _SubgroupGraph(Cached):
+class SubgroupOfFreeGroup(Cached):
+    # The first few methods are related to the graph representation, which is private.
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         self._identity_vertex = Vertex(free_group.identity())
 
         super().__init__()
 
-    def copy(self) -> "_SubgroupGraph":
-        new_graph = _SubgroupGraph(self.free_group)
-        vertex_mapping = {self._identity_vertex: new_graph._identity_vertex}
-        for vertex in self.vertices():
-            if vertex != self._identity_vertex:
-                vertex_mapping[vertex] = Vertex(vertex.elem)
-        for edge in self.edges():
-            Edge(vertex_mapping[edge.source], edge.elem, vertex_mapping[edge.target])
-        return new_graph
-
-    def conjugate(self, elem: FreeGroupElement) -> "_SubgroupGraph":
-        new_graph = self.copy()
-        _edges, vertex = new_graph._identity_vertex.walk_word_violent(~elem)
-        new_graph._identity_vertex = vertex
-        for v in new_graph.vertices():
-            v.elem = elem * v.elem
-
-        new_graph._identity_vertex.elem = self.free_group.identity()
-        new_graph._relabel()
-        return new_graph
-
     @cached_value
-    def vertices(self) -> Set[Vertex]:
+    def _vertices(self) -> Set[Vertex]:
         res = set((self._identity_vertex,))
         unchecked = set((self._identity_vertex,))
         while unchecked:
@@ -180,17 +159,14 @@ class _SubgroupGraph(Cached):
         return res
 
     @cached_value
-    def edges(self) -> Set[Edge]:
+    def _edges(self) -> Set[Edge]:
         res: Set[Edge] = set()
-        for vertex in self.vertices():
+        for vertex in self._vertices():
             for edge in vertex.forward_edges.values():
                 res.add(edge)
         return res
 
-    def __repr__(self) -> str:
-        return repr(self.edges())
-
-    def push_word(self, word: FreeGroupElement):
+    def _push_word(self, word: FreeGroupElement):
         self.flush()
         vertex = self._identity_vertex
         _edges, vertex = vertex.walk_word_violent(word)
@@ -248,7 +224,7 @@ class _SubgroupGraph(Cached):
         # What this function actually does is give every vertex a minimal representative.
         # Minimality is taken with respect to length and then lexicographically.
         # This ensures a spanning tree is created.
-        uncleared_vertices = self.vertices().copy()
+        uncleared_vertices = self._vertices().copy()
 
         while uncleared_vertices:
             v = uncleared_vertices.pop()
@@ -264,20 +240,18 @@ class _SubgroupGraph(Cached):
                     uncleared_vertices.add(edge.source)
 
     @cached_value
-    def cycle_generators(self) -> Dict[Edge, FreeGroupElement]:
+    def _cycle_generators(self) -> Dict[Edge, FreeGroupElement]:
         self._relabel()
         return {
             edge: value
-            for edge in self.edges()
+            for edge in self._edges()
             if not (
                 value := edge.source.elem * edge.elem * ~edge.target.elem
             ).is_identity()
         }
 
-    @cached_value
-    def coset_representatives(self) -> List[FreeGroupElement]:
-        self._relabel()
-        return [v.elem for v in self.vertices()]
+    def gens(self) -> List[FreeGroupElement]:
+        return list(self._cycle_generators().values())
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         path = self._identity_vertex.walk_word(elem)
@@ -289,7 +263,7 @@ class _SubgroupGraph(Cached):
 
         word = Word[FreeGroupElement]().identity()
         for edge, sign in edges:
-            gen = self.cycle_generators().get(edge)
+            gen = self._cycle_generators().get(edge)
             if gen is not None:
                 word.add(gen, sign)
 
@@ -302,9 +276,72 @@ class _SubgroupGraph(Cached):
         _edges, vertex = path
         return vertex == self._identity_vertex
 
+    def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
+        for gen in other.gens():
+            if not self.contains_element(gen):
+                return False
+        return True
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SubgroupOfFreeGroup):
+            return False
+        if self.free_group != other.free_group:
+            return False
+        return self.contains_subgroup(other) and other.contains_subgroup(self)
+
+    @cached_value
+    def right_coset_representatives(self) -> List[FreeGroupElement]:
+        self._relabel()
+        if not self.has_finite_index():
+            raise ValueError("Subgroup doesn't have finite index.")
+        return [v.elem for v in self._vertices()]
+
+    def left_coset_representatives(self) -> List[FreeGroupElement]:
+        return [~elem for elem in self.right_coset_representatives()]
+
+    def __repr__(self) -> str:
+        return f"Subgroup of {self.free_group} with free basis {self.gens()}"
+
+    @classonlymethod
+    def from_relations(
+        cls, free_group: FreeGroup, relations: List[FreeGroupElement]
+    ) -> "SubgroupOfFreeGroup":
+        for relation in relations:
+            if relation.free_group != free_group:
+                raise ValueError(f"Relation {relation} not in free group {free_group}")
+
+        res = SubgroupOfFreeGroup(free_group)
+        for relation in relations:
+            res._push_word(relation)
+        return res
+
+    def copy(self) -> "SubgroupOfFreeGroup":
+        new_graph = SubgroupOfFreeGroup(self.free_group)
+        vertex_mapping = {self._identity_vertex: new_graph._identity_vertex}
+        for vertex in self._vertices():
+            if vertex != self._identity_vertex:
+                vertex_mapping[vertex] = Vertex(vertex.elem)
+        for edge in self._edges():
+            Edge(vertex_mapping[edge.source], edge.elem, vertex_mapping[edge.target])
+        return new_graph
+
+    def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
+        new_graph = self.copy()
+        _edges, vertex = new_graph._identity_vertex.walk_word_violent(~elem)
+        new_graph._identity_vertex = vertex
+        for v in new_graph._vertices():
+            v.elem = elem * v.elem
+
+        new_graph._identity_vertex.elem = self.free_group.identity()
+        new_graph._relabel()
+        return new_graph
+
+    def is_empty(self) -> bool:
+        return len(self._vertices()) == 1 and len(self._edges()) == 0
+
     @cached_value
     def has_finite_index(self) -> bool:
-        for v in self.vertices():
+        for v in self._vertices():
             if not (
                 len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
             ):
@@ -315,16 +352,24 @@ class _SubgroupGraph(Cached):
     def index(self) -> int:
         if not self.has_finite_index():
             raise RuntimeError("Subgroup doesn't have finite index.")
-        return len(self.vertices())
+        return len(self._vertices())
 
     @classonlymethod
-    def intersect_graphs(
-        cls, free_group: FreeGroup, graphs: Sequence["_SubgroupGraph"]
-    ) -> "_SubgroupGraph":
-        res = _SubgroupGraph(free_group)
+    def join_subgroups(
+        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        return SubgroupOfFreeGroup.from_relations(
+            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
+        )
+
+    @classonlymethod
+    def intersect_subgroups(
+        cls, free_group: FreeGroup, graphs: Sequence["SubgroupOfFreeGroup"]
+    ) -> "SubgroupOfFreeGroup":
+        # Constructing the product graph by hand.
+        res = SubgroupOfFreeGroup(free_group)
 
         mapping_back = {tuple(g._identity_vertex for g in graphs): res._identity_vertex}
-
         uncleared = set(
             (
                 (
@@ -364,104 +409,6 @@ class _SubgroupGraph(Cached):
 
         return res
 
-
-class SubgroupOfFreeGroup(Cached):
-    def __init__(self, free_group: FreeGroup):
-        self._graph = _SubgroupGraph(free_group)
-        self.free_group = free_group
-
-        super().__init__()
-
-    @classmethod
-    def from_relations(
-        cls, free_group: FreeGroup, relations: List[FreeGroupElement]
-    ) -> "SubgroupOfFreeGroup":
-        for relation in relations:
-            if relation.free_group != free_group:
-                raise ValueError(f"Relation {relation} not in free group {free_group}")
-
-        res = SubgroupOfFreeGroup(free_group)
-        for relation in relations:
-            res.push_word(relation)
-        return res
-
-    def push_word(self, word: FreeGroupElement):
-        self._graph.push_word(word)
-
-    def __repr__(self) -> str:
-        return f"Subgroup of {self.free_group} with free basis {self.gens()}"
-
-    def gens(self) -> List[FreeGroupElement]:
-        return list(self._graph.cycle_generators().values())
-
-    def right_coset_representatives(self) -> List[FreeGroupElement]:
-        if not self.has_finite_index():
-            raise ValueError("Subgroup doesn't have finite index.")
-        return self._graph.coset_representatives()
-
-    def left_coset_representatives(self) -> List[FreeGroupElement]:
-        return [~elem for elem in self.right_coset_representatives()]
-
-    def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
-        return self._graph.express(elem)
-
-    def contains_element(self, elem: FreeGroupElement) -> bool:
-        return self._graph.contains_element(elem)
-
-    def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
-        for gen in other.gens():
-            if not self.contains_element(gen):
-                return False
-        return True
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, SubgroupOfFreeGroup):
-            return False
-        if self.free_group != other.free_group:
-            return False
-        return self.contains_subgroup(other) and other.contains_subgroup(self)
-
-    @classonlymethod
-    def join_subgroups(
-        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
-    ) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup.from_relations(
-            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
-        )
-
-    @classmethod
-    def _from_graph(cls, graph: _SubgroupGraph) -> "SubgroupOfFreeGroup":
-        # Use carefully! Unlike from_relations, this does not verify the input is good.
-        res = SubgroupOfFreeGroup(graph.free_group)
-        res._graph = graph
-        return res
-
-    def copy(self) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup._from_graph(self._graph.copy())
-
-    @classonlymethod
-    def intersect_subgroups(
-        cls, free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
-    ) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup._from_graph(
-            _SubgroupGraph.intersect_graphs(
-                free_group, [subgroup._graph for subgroup in subgroups]
-            )
-        )
-
-    def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
-        new_graph = self._graph.conjugate(elem)
-        return SubgroupOfFreeGroup._from_graph(new_graph)
-
-    @cached_value
-    def core(self) -> "SubgroupOfFreeGroup":
-        return self.free_group.intersect_subgroups(
-            [self.conjugate(x) for x in self.left_coset_representatives()]
-        )
-
-    def is_empty(self) -> bool:
-        return len(self._graph.vertices()) == 1 and len(self._graph.edges()) == 0
-
     @cached_value
     def is_normal(self) -> bool:
         for gen in self.gens():
@@ -485,17 +432,16 @@ class SubgroupOfFreeGroup(Cached):
                 for b in gens:
                     a_conj = a.conjugate(b)
                     if not res.contains_element(a_conj):
-                        res.push_word(a_conj)
+                        res._push_word(a_conj)
                         normal = False
             if normal:
                 return res
 
-    def index(self) -> int:
-        # Raises error if the index is infinite.
-        return self._graph.index()
-
-    def has_finite_index(self) -> bool:
-        return self._graph.has_finite_index()
+    @cached_value
+    def core(self) -> "SubgroupOfFreeGroup":
+        return self.free_group.intersect_subgroups(
+            [self.conjugate(x) for x in self.left_coset_representatives()]
+        )
 
     def rank(self) -> int:
         return len(self.gens())
