@@ -163,11 +163,6 @@ class _SubgroupGraph(Cached):
         new_graph._relabel()
         return new_graph
 
-    # def reset_cache(self):
-    #     self._cycle_generators: Optional[Dict[Edge, FreeGroupElement]] = None
-    #     self._coset_representatives: Optional[List[FreeGroupElement]] = None
-    #     self._vertices: Optional[Set[Vertex]] = None
-
     @cached_value
     def vertices(self) -> Set[Vertex]:
         res = set((self._identity_vertex,))
@@ -268,9 +263,6 @@ class _SubgroupGraph(Cached):
                     edge.source.elem = suggestion
                     uncleared_vertices.add(edge.source)
 
-        # assert (
-        # )
-
     @cached_value
     def cycle_generators(self) -> Dict[Edge, FreeGroupElement]:
         self._relabel()
@@ -310,6 +302,7 @@ class _SubgroupGraph(Cached):
         _edges, vertex = path
         return vertex == self._identity_vertex
 
+    @cached_value
     def has_finite_index(self) -> bool:
         for v in self.vertices():
             if not (
@@ -318,6 +311,7 @@ class _SubgroupGraph(Cached):
                 return False
         return True
 
+    @cached_value
     def index(self) -> int:
         if not self.has_finite_index():
             raise RuntimeError("Subgroup doesn't have finite index.")
@@ -341,7 +335,6 @@ class _SubgroupGraph(Cached):
         )
         while uncleared:
             vertex, images = uncleared.pop()
-            # images = mapping[vertex]
             for gen in free_group.gens():
                 for s in (-1, 1):
                     if vertex.observe_direction(gen, s) is not None:
@@ -372,10 +365,12 @@ class _SubgroupGraph(Cached):
         return res
 
 
-class SubgroupOfFreeGroup:
+class SubgroupOfFreeGroup(Cached):
     def __init__(self, free_group: FreeGroup):
         self._graph = _SubgroupGraph(free_group)
         self.free_group = free_group
+
+        super().__init__()
 
     @classmethod
     def from_relations(
@@ -458,6 +453,7 @@ class SubgroupOfFreeGroup:
         new_graph = self._graph.conjugate(elem)
         return SubgroupOfFreeGroup._from_graph(new_graph)
 
+    @cached_value
     def core(self) -> "SubgroupOfFreeGroup":
         return self.free_group.intersect_subgroups(
             [self.conjugate(x) for x in self.left_coset_representatives()]
@@ -466,6 +462,7 @@ class SubgroupOfFreeGroup:
     def is_empty(self) -> bool:
         return len(self._graph.vertices()) == 1 and len(self._graph.edges()) == 0
 
+    @cached_value
     def is_normal(self) -> bool:
         for gen in self.gens():
             # It isn't trivial we don't have to consider conjugations by inverses.
