@@ -4,7 +4,7 @@ from free_group import (
     FreeGroupElement,
     FreeGroupGenerator,
 )
-from utils import classonlymethod, panic, sign
+from utils import Cached, cached_value, classonlymethod, panic, sign
 from word import Word
 
 Sign = Literal[-1, 1]
@@ -135,12 +135,12 @@ class Edge:
 
 
 # Can be merged with the Subgroup class..
-class _SubgroupGraph:
+class _SubgroupGraph(Cached):
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
         self._identity_vertex = Vertex(free_group.identity())
 
-        self.reset_cache()
+        super().__init__()
 
     def copy(self) -> "_SubgroupGraph":
         new_graph = _SubgroupGraph(self.free_group)
@@ -163,43 +163,40 @@ class _SubgroupGraph:
         new_graph._relabel()
         return new_graph
 
-    def reset_cache(self):
-        self._cycle_generators: Optional[Dict[Edge, FreeGroupElement]] = None
-        self._coset_representatives: Optional[List[FreeGroupElement]] = None
-        self._vertices: Optional[Set[Vertex]] = None
-        self._edges: Optional[Set[Edge]] = None
+    # def reset_cache(self):
+    #     self._cycle_generators: Optional[Dict[Edge, FreeGroupElement]] = None
+    #     self._coset_representatives: Optional[List[FreeGroupElement]] = None
+    #     self._vertices: Optional[Set[Vertex]] = None
 
+    @cached_value
     def vertices(self) -> Set[Vertex]:
-        if self._vertices is None:
-            self._vertices = set((self._identity_vertex,))
-            unchecked = set((self._identity_vertex,))
-            while unchecked:
-                vertex = unchecked.pop()
-                for edge in vertex.forward_edges.values():
-                    if not edge.target in self._vertices:
-                        unchecked.add(edge.target)
-                        self._vertices.add(edge.target)
-                for edge in vertex.backward_edges.values():
-                    if not edge.source in self._vertices:
-                        unchecked.add(edge.source)
-                        self._vertices.add(edge.source)
-        return self._vertices.copy()
+        res = set((self._identity_vertex,))
+        unchecked = set((self._identity_vertex,))
+        while unchecked:
+            vertex = unchecked.pop()
+            for edge in vertex.forward_edges.values():
+                if not edge.target in res:
+                    unchecked.add(edge.target)
+                    res.add(edge.target)
+            for edge in vertex.backward_edges.values():
+                if not edge.source in res:
+                    unchecked.add(edge.source)
+                    res.add(edge.source)
+        return res
 
+    @cached_value
     def edges(self) -> Set[Edge]:
-        if self._edges is None:
-            self._edges = set()
-            for vertex in self.vertices():
-                for edge in vertex.forward_edges.values():
-                    self._edges.add(edge)
-                for edge in vertex.backward_edges.values():
-                    self._edges.add(edge)
-        return self._edges.copy()
+        res: Set[Edge] = set()
+        for vertex in self.vertices():
+            for edge in vertex.forward_edges.values():
+                res.add(edge)
+        return res
 
     def __repr__(self) -> str:
         return repr(self.edges())
 
     def push_word(self, word: FreeGroupElement):
-        self.reset_cache()
+        self.flush()
         vertex = self._identity_vertex
         _edges, vertex = vertex.walk_word_violent(word)
 
@@ -272,26 +269,23 @@ class _SubgroupGraph:
                     uncleared_vertices.add(edge.source)
 
         # assert (
-        #     len(self._edges) == len(self.cycle_generators()) + len(self._vertices) - 1
         # )
 
+    @cached_value
     def cycle_generators(self) -> Dict[Edge, FreeGroupElement]:
-        if self._cycle_generators is None:
-            self._relabel()
-            self._cycle_generators = {
-                edge: value
-                for edge in self.edges()
-                if not (
-                    value := edge.source.elem * edge.elem * ~edge.target.elem
-                ).is_identity()
-            }
-        return self._cycle_generators
+        self._relabel()
+        return {
+            edge: value
+            for edge in self.edges()
+            if not (
+                value := edge.source.elem * edge.elem * ~edge.target.elem
+            ).is_identity()
+        }
 
+    @cached_value
     def coset_representatives(self) -> List[FreeGroupElement]:
-        if self._coset_representatives is None:
-            self._relabel()
-            self._coset_representatives = [v.elem for v in self.vertices()]
-        return self._coset_representatives
+        self._relabel()
+        return [v.elem for v in self.vertices()]
 
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         path = self._identity_vertex.walk_word(elem)

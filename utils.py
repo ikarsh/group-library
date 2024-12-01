@@ -1,7 +1,9 @@
+from functools import wraps
 from typing import (
     Any,
     Callable,
     Concatenate,
+    Dict,
     Generic,
     Literal,
     Optional,
@@ -61,3 +63,30 @@ class classonlymethod(Generic[P, R]):
             return self.func(cls, *args, **kwargs)
 
         return bound
+
+
+S = TypeVar("S", bound="Cached")
+
+
+class Cached:
+    def __init__(self):
+        self._cache: Dict[str, Any] = {}
+
+    def do_cached_method(self: S, method: Callable[[S], R]) -> R:
+        result: Optional[R] = self._cache.get(method.__name__)
+        if result is not None:
+            return result
+        result = method(self)
+        self._cache[method.__name__] = result
+        return result
+
+    def flush(self):
+        self._cache.clear()
+
+
+def cached_value(func: Callable[[S], R]) -> Callable[[S], R]:
+    @wraps(func)
+    def wrap(self: S) -> R:
+        return self.do_cached_method(func)
+
+    return wrap
