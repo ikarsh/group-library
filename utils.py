@@ -29,19 +29,6 @@ def unwrap(x: Optional[T]) -> T:
     return x
 
 
-# def classonlymethod(f: Callable[P, R]) -> Callable[P, R]:
-#     def wrap(*args: P.args, **kwargs: P.kwargs) -> R:
-#         if not args:
-#             assert False, "Should not happen"
-#         if isinstance(args[0], type):
-#             raise TypeError(f"{args[0]} is not a class")
-#         return f(*args, **kwargs)
-
-#     return wrap
-
-# F = TypeVar("F", bound=Callable[..., Any])
-
-
 def panic() -> Any:
     assert False
 
