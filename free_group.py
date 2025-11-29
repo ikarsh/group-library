@@ -10,6 +10,7 @@ from typing import (
     Tuple,
 )
 
+from subgroup_of_free_group import NormalSubgroupOfFreeGroup
 from word import Word, sign
 
 if TYPE_CHECKING:
@@ -78,7 +79,7 @@ class FreeGroup:
 
     def normal_subgroup(
         self, relations: Sequence["FreeGroupElement"]
-    ) -> "SubgroupOfFreeGroup":
+    ) -> NormalSubgroupOfFreeGroup:
         return self.subgroup(relations).normalization()
 
     def full_subgroup(self) -> "SubgroupOfFreeGroup":

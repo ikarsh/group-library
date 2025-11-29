@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional, Self, Sequence, Set, Tuple, TypeVar
+from typing import Dict, List, Literal, Optional, Self, Sequence, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
