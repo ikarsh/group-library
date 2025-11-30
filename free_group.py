@@ -13,7 +13,7 @@ from typing import (
 from word import Word, sign
 
 if TYPE_CHECKING:
-    from subgroup_of_free_group import SubgroupOfFreeGroup, NormalSubgroupOfFreeGroup
+    from subgroup_of_free_group import SubgroupOfFreeGroup
 
 
 class FreeGroup:
@@ -80,8 +80,8 @@ class FreeGroup:
 
     def normal_subgroup(
         self, relations: Sequence["FreeGroupElement"]
-    ) -> "NormalSubgroupOfFreeGroup":
-        return self.subgroup(relations).normalization()
+    ) -> "SubgroupOfFreeGroup":
+        return self.subgroup(relations).normalization_in(self)
 
     def full_subgroup(self) -> "SubgroupOfFreeGroup":
         return self.subgroup([gen for gen in self.gens()])
@@ -166,6 +166,9 @@ class FreeGroupElement(Word["FreeGroupGenerator"]):
         if not isinstance(other, FreeGroupElement):
             return False
         return self.free_group == other.free_group and self.word == other.word
+
+    # def __hash__(self) -> int:
+    #     return hash((self.free_group, tuple(self.word)))
 
     def substitute(
         self, codomain: FreeGroup, values: Tuple["FreeGroupElement", ...]

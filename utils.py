@@ -3,10 +3,12 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Concatenate,
     Dict,
     Literal,
     Optional,
     ParamSpec,
+    Tuple,
     TypeVar,
 )
 
@@ -84,3 +86,62 @@ def cached_value(func: Callable[[S], R]) -> Callable[[S], R]:
         return self.do_cached_method(func)
 
     return wrap
+
+
+# def id_cache(func: Callable[P, R]) -> Callable[P, R]:
+#     cache: Dict[Tuple[int, ...], R] = {}
+
+#     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+#         key = tuple(id(a) for a in args) + (-1,) + tuple(id((k, v)) for k, v in kwargs.items())
+#         if key not in cache:
+#             cache[key] = func(*args, **kwargs)
+#         return cache[key]
+
+#     setattr(wrapper, "_id_cache", cache)
+
+#     return wrapper
+
+
+import weakref
+from functools import wraps
+
+
+def _make_ref(obj: Any) -> Callable[[], Any]:
+    try:
+        return weakref.ref(obj)
+    except TypeError:
+        return lambda: obj
+
+
+Slf = TypeVar("Slf")
+
+# P = ParamSpec("P")
+
+
+def instance_cache(
+    method: Callable[Concatenate[Slf, P], R],
+) -> Callable[Concatenate[Slf, P], R]:
+    name = f"_cached_{method.__name__}"
+
+    @wraps(method)
+    def wrapper(self: Slf, *args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            cache = getattr(self, name)
+        except AttributeError:
+            cache: Dict[Tuple[int, ...], Tuple[Tuple[Callable[[], Any], ...], R]] = {}
+            setattr(self, name, cache)
+
+        key = tuple(id(a) for a in args)
+        if key in cache:
+            refs, result = cache[key]
+            if all(r() is a for r, a in zip(refs, args)):
+                return result
+
+        result = method(self, *args, **kwargs)
+        refs = tuple(_make_ref(a) for a in args) + tuple(
+            _make_ref(v) for v in kwargs.values()
+        )
+        cache[key] = (refs, result)
+        return result
+
+    return wrapper

@@ -6,9 +6,6 @@ from typing import TYPE_CHECKING, List
 from finite_group import FiniteGroup, FiniteGroupElement
 from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
-from subgroup_of_free_group import (
-    NormalFiniteIndexSubgroupOfFreeGroup,
-)
 
 if TYPE_CHECKING:
 
@@ -124,15 +121,15 @@ def test_normal_subgroup():
     F2 = FreeGroup(("a", "b"))
     a, b = F2.gens()
 
-    assert F2.full_subgroup().is_normal()
-    assert F2.empty_subgroup().is_normal()
-    assert not F2.subgroup([a]).is_normal()
+    assert F2.full_subgroup().is_normal_in(F2)
+    assert F2.empty_subgroup().is_normal_in(F2)
+    assert not F2.subgroup([a]).is_normal_in(F2)
     assert F2.subgroup(
         [a, a.conjugate(b), a.conjugate(b**2), a.conjugate(b**3), b**4]
-    ).is_normal()
+    ).is_normal_in(F2)
 
     # Generate S3
-    assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal()
+    assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal_in(F2)
 
 
 def test_finite_index_subgroup():
@@ -143,8 +140,7 @@ def test_finite_index_subgroup():
     kernel = F2.normal_subgroup(
         [a**2, b**5, (a * b) ** 4, commutator(a, b) ** 3, commutator(a, b**2) ** 2]
     )
-    assert isinstance(kernel, NormalFiniteIndexSubgroupOfFreeGroup)
-    G = kernel.quotient()
+    G = F2 / kernel
     assert G.order() == 120
 
     h = FiniteGroupElement(G, a * b * a)
@@ -184,31 +180,31 @@ def test_finite_groups():
     for n in range(2, 10):
         Cn = C(n)
         assert Cn.order() == n
-        assert Cn.center_size() == n
+        assert Cn.center() == Cn
         verify_formula(Cn)
 
     for n in range(3, 10):
         Dn = D(n)
         assert Dn.order() == 2 * n
-        assert Dn.center_size() == 1 if n % 2 == 1 else 2
+        assert Dn.center().order() == 1 if n % 2 == 1 else 2
         verify_formula(Dn)
 
     for n in (3, 4, 5):
         Qn = GQ(n)
         assert Qn.order() == 2**n
-        assert Qn.center_size() == 2
+        assert Qn.center().order() == 2
         verify_formula(Qn)
 
     for n in range(3, 6):
         Sn = S(n)
         assert Sn.order() == factorial(n)
-        assert Sn.center_size() == 1
+        assert Sn.center().order() == 1
         verify_formula(Sn)
 
     for n in range(3, 6):
         An = A(n)
         assert An.order() == factorial(n) // 2
-        assert An.center_size() == 3 if n == 3 else 1
+        assert An.center().order() == 3 if n == 3 else 1
         verify_formula(An)
 
     for gps in [
@@ -219,7 +215,7 @@ def test_finite_groups():
     ]:
         P = dir_prod(gps)
         assert P.order() == prod((G.order() for G in gps))
-        assert P.center_size() == prod((G.center_size() for G in gps))
+        assert P.center().order() == prod((G.center().order() for G in gps))
         verify_formula(P)
 
     for n in (3, 5):  # Sadly these tests are slow for larger n.
@@ -233,8 +229,8 @@ def test_finite_groups():
 
         assert SL2n.order() == SL2n_size
         assert PSL2n.order() == SL2n_size // 2
-        assert SL2n.center_size() == 2
-        assert PSL2n.center_size() == 1
+        assert SL2n.center().order() == 2
+        assert PSL2n.center().order() == 1
         verify_formula(SL2n)
 
 
@@ -249,6 +245,17 @@ def test_relative_subgroups():
     assert H2.has_finite_index_in(H1)
 
 
+def test_A4_subgroup():
+    A4 = A(4)
+    a, b = A4.gens()
+    V = A4.subgroup([a * b]).normalizer_in(A4)
+    assert V.order() == 4
+    # TODO fix this nonsense, can't say it is identity
+    assert (a**4 == a**2 for a in V.elements())
+    assert (A4 / V).order() == 3
+    assert V.centralizer_in(A4) == V
+
+
 def test_all():
     test_free_group_identities()
     test_subgroup_creation()
@@ -257,3 +264,5 @@ def test_all():
     test_normal_subgroup()
     test_finite_index_subgroup()
     test_finite_groups()
+    test_relative_subgroups()
+    test_A4_subgroup()

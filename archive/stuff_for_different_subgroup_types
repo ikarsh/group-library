@@ -1,0 +1,75 @@
+from typing import TYPE_CHECKING
+
+
+if not TYPE_CHECKING:
+
+    @purestaticmethod
+    def _from_relations(
+        free_group: FreeGroup, relations: List[FreeGroupElement]
+    ) -> "_SubgroupOfFreeGroupBase":
+        for relation in relations:
+            if relation.free_group != free_group:
+                raise ValueError(f"Relation {relation} not in free group {free_group}")
+
+        res = _SubgroupOfFreeGroupBase(free_group)
+        for relation in relations:
+            res._push_word(relation)
+
+        return res
+
+    @purestaticmethod
+    def from_relations(
+        free_group: FreeGroup, relations: List[FreeGroupElement]
+    ) -> "SubgroupOfFreeGroup":
+        subgroup = _SubgroupOfFreeGroupBase._from_relations(free_group, relations)
+        return SubgroupOfFreeGroup.detect_type(subgroup)
+
+    class SubgroupOfFreeGroup(_SubgroupOfFreeGroupBase):
+        def __init__(self, free_group: FreeGroup, code: str):
+            super().__init__(free_group)
+
+            if not code == "called from SubgroupOfFreeGroup._cast":
+                raise ValueError("SubgroupOfFreeGroup must be created via _cast method.")
+
+        @classonlymethod
+        def _cast(cls, subgroup: "_SubgroupOfFreeGroupBase") -> Self:
+            new_copy = cls(
+                subgroup.free_group, code="called from SubgroupOfFreeGroup._cast"
+            )
+            vertex_mapping = {subgroup._identity_vertex: new_copy._identity_vertex}
+            for vertex in subgroup._vertices():
+                if vertex != subgroup._identity_vertex:
+                    vertex_mapping[vertex] = Vertex(vertex.elem)
+            for edge in subgroup._edges():
+                Edge(vertex_mapping[edge.source], edge.elem, vertex_mapping[edge.target])
+            return new_copy
+
+        @purestaticmethod
+        def detect_type(subgroup: "_SubgroupOfFreeGroupBase") -> "SubgroupOfFreeGroup":
+            if subgroup.is_normal_in(subgroup.free_group) and subgroup.has_finite_index():
+                return NormalFiniteIndexSubgroupOfFreeGroup._cast(subgroup)
+            if subgroup.is_normal_in(subgroup.free_group):
+                return NormalSubgroupOfFreeGroup._cast(subgroup)
+            if subgroup.has_finite_index():
+                return FiniteIndexSubgroupOfFreeGroup._cast(subgroup)
+            return SubgroupOfFreeGroup._cast(subgroup)
+
+
+    class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
+        pass
+
+    class NormalSubgroupOfFreeGroup(SubgroupOfFreeGroup):
+        pass
+
+
+    if TYPE_CHECKING:
+        from finite_group import FiniteGroup
+
+
+    class NormalFiniteIndexSubgroupOfFreeGroup(
+        FiniteIndexSubgroupOfFreeGroup, NormalSubgroupOfFreeGroup
+    ):
+        def quotient(self) -> "FiniteGroup":
+            from finite_group import FiniteGroup
+
+            return FiniteGroup(self)
