@@ -167,7 +167,7 @@ class FiniteGroup:
         current_group = self
         while current_group.order() > 1:
             center = current_group.center()
-            if center == current_group:
+            if center.is_trivial():
                 return False
             current_group = current_group / center
         return True

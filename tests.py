@@ -270,6 +270,8 @@ def test_p_sylow():
             # The amount of conjugations
             assert (G.order() // P.normalizer_in(G).order()) % p == 1
 
+            assert P.is_nilpotent()
+
 
 def test_simple_group():
     assert C(2).is_simple()
