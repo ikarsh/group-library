@@ -195,13 +195,26 @@ class FiniteGroup:
     def is_simple(self) -> bool:
         if self.is_trivial():
             return False
-        return (self.is_cyclic() and isprime(self.order())) or (
-            all(
-                self.subgroup([g]).normalization_in(self) == self
-                for g in self.elements()
-                if g != self.identity()
-            )
-        )
+
+        if self.is_cyclic() and isprime(self.order()):
+            return True
+
+        checked: List[FiniteGroupElement] = []
+        for g in self.elements():
+            p = g.order()
+            if not isprime(p):
+                continue
+            if g in checked:
+                continue
+            if self.subgroup([g]).normalization_in(self) != self:
+                return False
+            # Add all powers and conjugations
+            for i in range(1, p):
+                for elm in self.elements():
+                    _g = (g**i).conjugate(elm)
+                    if _g not in checked:
+                        checked.append(_g)
+        return True
 
     def p_order_element(self, p: int) -> "FiniteGroupElement":
         if not isprime(p):

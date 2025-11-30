@@ -271,6 +271,14 @@ def test_p_sylow():
             assert (G.order() // P.normalizer_in(G).order()) % p == 1
 
 
+def test_simple_group():
+    assert C(2).is_simple()
+    assert not C(4).is_simple()
+    assert not A(4).is_simple()
+    assert A(5).is_simple()
+    assert PSL2(7).is_simple()
+
+
 def test_all():
     test_free_group_identities()
     test_subgroup_creation()
@@ -282,3 +290,4 @@ def test_all():
     test_relative_subgroups()
     test_A4_subgroup()
     test_p_sylow()
+    test_simple_group()
