@@ -306,9 +306,9 @@ class _SubgroupOfFreeGroupBase(Cached):
         return f"Subgroup of {self.free_group} with free basis {self.gens()}"
 
     @purestaticmethod
-    def from_relations(
+    def _from_relations(
         free_group: FreeGroup, relations: List[FreeGroupElement]
-    ) -> "SubgroupOfFreeGroup":
+    ) -> "_SubgroupOfFreeGroupBase":
         for relation in relations:
             if relation.free_group != free_group:
                 raise ValueError(f"Relation {relation} not in free group {free_group}")
@@ -317,10 +317,20 @@ class _SubgroupOfFreeGroupBase(Cached):
         for relation in relations:
             res._push_word(relation)
 
-        return SubgroupOfFreeGroup.detect_type(res)
+        return res
 
-    # def copy(self):
-    #     return type(self).detect_type(self)
+    @purestaticmethod
+    def from_relations(
+        free_group: FreeGroup, relations: List[FreeGroupElement]
+    ) -> "SubgroupOfFreeGroup":
+        subgroup = _SubgroupOfFreeGroupBase._from_relations(free_group, relations)
+        return SubgroupOfFreeGroup.detect_type(subgroup)
+
+    @purestaticmethod
+    def _full_subgroup(free_group: FreeGroup) -> "_SubgroupOfFreeGroupBase":
+        return _SubgroupOfFreeGroupBase._from_relations(
+            free_group, list(free_group.gens())
+        )
 
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
         conjugation = SubgroupOfFreeGroup.detect_type(self)  # copy
@@ -336,14 +346,28 @@ class _SubgroupOfFreeGroupBase(Cached):
     def is_empty(self) -> bool:
         return len(self._vertices()) == 1 and len(self._edges()) == 0
 
-    @cached_value
-    def has_finite_index(self) -> bool:
-        for v in self._vertices():
+    def has_finite_index_in(self, other: "_SubgroupOfFreeGroupBase") -> bool:
+        if self.free_group != other.free_group:
+            raise ValueError("Cannot compare subgroups of different free groups.")
+        if not other.contains_subgroup(self):
+            return False
+        for vertex in other._vertices():
+            elem = vertex.elem
+            path = self._identity_vertex.walk_word(elem)
+            assert path is not None
+            _edges, projected_vertex = path
             if not (
-                len(v.forward_edges) == len(v.backward_edges) == self.free_group.rank()
+                len(projected_vertex.forward_edges) == len(vertex.forward_edges)
+                and len(projected_vertex.backward_edges) == len(vertex.backward_edges)
             ):
                 return False
         return True
+
+    @cached_value
+    def has_finite_index(self) -> bool:
+        return self.has_finite_index_in(
+            _SubgroupOfFreeGroupBase._full_subgroup(self.free_group)
+        )
 
     @purestaticmethod
     def join_subgroups(
@@ -400,15 +424,26 @@ class _SubgroupOfFreeGroupBase(Cached):
 
         return SubgroupOfFreeGroup.detect_type(res)
 
-    @cached_value
-    def is_normal(self) -> bool:
+    def is_normal_in(self, other: "_SubgroupOfFreeGroupBase") -> bool:
+        if self.free_group != other.free_group:
+            raise ValueError("Cannot compare subgroups of different free groups.")
+        if not other.contains_subgroup(self):
+            return False
         for gen in self.gens():
-            # It isn't trivial we don't have to consider conjugations by inverses.
-            # It is true because of finite generation!
-            for a in self.free_group.gens():
+            for a in other.gens():
+                # TODO: figure out when we can get away with not checking inverses.
+                # Should work for other = free_group.
                 if not self.contains_element(gen.conjugate(a)):
                     return False
+                if not self.contains_element(gen.conjugate(~a)):
+                    return False
         return True
+
+    @cached_value
+    def is_normal(self) -> bool:
+        return self.is_normal_in(
+            _SubgroupOfFreeGroupBase._full_subgroup(self.free_group)
+        )
 
     def normalization(self) -> "NormalSubgroupOfFreeGroup":
         # Beware the word problem!

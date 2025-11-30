@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, List
 from finite_group import FiniteGroup, FiniteGroupElement
 from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
-from subgroup_of_free_group import NormalFiniteIndexSubgroupOfFreeGroup
+from subgroup_of_free_group import (
+    NormalFiniteIndexSubgroupOfFreeGroup,
+)
 
 if TYPE_CHECKING:
 
@@ -234,6 +236,17 @@ def test_finite_groups():
         assert SL2n.center_size() == 2
         assert PSL2n.center_size() == 1
         verify_formula(SL2n)
+
+
+def test_relative_subgroups():
+    F2 = FreeGroup(("a", "b"))
+    a, _b = F2.gens()
+    H1 = F2.subgroup([a])
+    H2 = F2.subgroup([a**5])
+    assert H1.is_normal_in(H1) and H2.is_normal_in(H2)
+    assert H2.is_normal_in(H1)
+    assert H1.has_finite_index_in(H1) and H2.has_finite_index_in(H2)
+    assert H2.has_finite_index_in(H1)
 
 
 def test_all():
