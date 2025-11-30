@@ -49,7 +49,7 @@ class FreeGroup:
     def rank(self):
         return len(self.gens())
 
-    def __iter__(self, max_len: Optional[int] = None) -> Iterator["FreeGroupElement"]:
+    def __iter__(self, *, max_len: Optional[int] = None) -> Iterator["FreeGroupElement"]:
         # Iterates over the words in the group, up to a certain length.
         def paths(w: FreeGroupElement, len: int) -> Iterator[FreeGroupElement]:
             if len == 0:

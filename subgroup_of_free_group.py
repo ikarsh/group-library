@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional, Self, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Self, Sequence, Set, Tuple
 from free_group import (
     FreeGroup,
     FreeGroupElement,
@@ -498,5 +498,10 @@ class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
 class NormalSubgroupOfFreeGroup(SubgroupOfFreeGroup):
     pass
 
+if TYPE_CHECKING:
+    from finite_group import FiniteGroup
+
 class NormalFiniteIndexSubgroupOfFreeGroup(FiniteIndexSubgroupOfFreeGroup, NormalSubgroupOfFreeGroup):
-    pass
+    def quotient(self) -> "FiniteGroup":
+        from finite_group import FiniteGroup
+        return FiniteGroup(self)
