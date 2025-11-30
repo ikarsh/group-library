@@ -1,10 +1,20 @@
-from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Self, Sequence, Set, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Self,
+    Sequence,
+    Set,
+    Tuple,
+)
 from free_group import (
     FreeGroup,
     FreeGroupElement,
     FreeGroupGenerator,
 )
-from utils import Cached, cached_value, classonlymethod, panic, sign
+from utils import Cached, cached_value, classonlymethod, purestaticmethod, panic, sign
 from word import Word
 
 Sign = Literal[-1, 1]
@@ -137,7 +147,7 @@ class Edge:
 # Underscore to indicate this is a base class.
 # A usage of SubgroupOfFreeGroup must place every subgroup
 # inside the correct subclass.
-class _SubgroupOfFreeGroup(Cached):
+class _SubgroupOfFreeGroupBase(Cached):
     # The first few methods are related to the graph representation, which is private.
     def __init__(self, free_group: FreeGroup):
         self.free_group = free_group
@@ -279,14 +289,14 @@ class _SubgroupOfFreeGroup(Cached):
         _edges, vertex = path
         return vertex == self._identity_vertex
 
-    def contains_subgroup(self, other: "_SubgroupOfFreeGroup") -> bool:
+    def contains_subgroup(self, other: "_SubgroupOfFreeGroupBase") -> bool:
         for gen in other.gens():
             if not self.contains_element(gen):
                 return False
         return True
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _SubgroupOfFreeGroup):
+        if not isinstance(other, _SubgroupOfFreeGroupBase):
             return False
         if self.free_group != other.free_group:
             return False
@@ -295,25 +305,25 @@ class _SubgroupOfFreeGroup(Cached):
     def __repr__(self) -> str:
         return f"Subgroup of {self.free_group} with free basis {self.gens()}"
 
-    @classonlymethod
+    @purestaticmethod
     def from_relations(
-        cls, free_group: FreeGroup, relations: List[FreeGroupElement]
+        free_group: FreeGroup, relations: List[FreeGroupElement]
     ) -> "SubgroupOfFreeGroup":
         for relation in relations:
             if relation.free_group != free_group:
                 raise ValueError(f"Relation {relation} not in free group {free_group}")
 
-        res = _SubgroupOfFreeGroup(free_group)
+        res = _SubgroupOfFreeGroupBase(free_group)
         for relation in relations:
             res._push_word(relation)
-        
+
         return SubgroupOfFreeGroup.detect_type(res)
-    
+
     # def copy(self):
     #     return type(self).detect_type(self)
 
     def conjugate(self, elem: FreeGroupElement) -> "SubgroupOfFreeGroup":
-        conjugation = SubgroupOfFreeGroup.detect_type(self)
+        conjugation = SubgroupOfFreeGroup.detect_type(self)  # copy
         _edges, vertex = conjugation._identity_vertex.walk_word_violent(~elem)
         conjugation._identity_vertex = vertex
         for v in conjugation._vertices():
@@ -334,21 +344,21 @@ class _SubgroupOfFreeGroup(Cached):
             ):
                 return False
         return True
-    
-    @classonlymethod
+
+    @purestaticmethod
     def join_subgroups(
-        cls, free_group: FreeGroup, subgroups: Sequence["_SubgroupOfFreeGroup"]
+        free_group: FreeGroup, subgroups: Sequence["_SubgroupOfFreeGroupBase"]
     ) -> "SubgroupOfFreeGroup":
         return SubgroupOfFreeGroup.from_relations(
             free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
         )
 
-    @classonlymethod
+    @purestaticmethod
     def intersect_subgroups(
-        cls, free_group: FreeGroup, graphs: Sequence["_SubgroupOfFreeGroup"]
+        free_group: FreeGroup, graphs: Sequence["_SubgroupOfFreeGroupBase"]
     ) -> "SubgroupOfFreeGroup":
         # Constructing the product graph by hand.
-        res = _SubgroupOfFreeGroup(free_group)
+        res = _SubgroupOfFreeGroupBase(free_group)
 
         mapping_back = {tuple(g._identity_vertex for g in graphs): res._identity_vertex}
         uncleared = set(
@@ -420,21 +430,22 @@ class _SubgroupOfFreeGroup(Cached):
                 assert isinstance(res, NormalSubgroupOfFreeGroup)
                 return res
 
-
     def rank(self) -> int:
         return len(self.gens())
 
 
-class SubgroupOfFreeGroup(_SubgroupOfFreeGroup):
+class SubgroupOfFreeGroup(_SubgroupOfFreeGroupBase):
     def __init__(self, free_group: FreeGroup, code: str):
         super().__init__(free_group)
 
         if not code == "called from SubgroupOfFreeGroup._cast":
             raise ValueError("SubgroupOfFreeGroup must be created via _cast method.")
-    
+
     @classonlymethod
-    def _cast(cls, subgroup : "_SubgroupOfFreeGroup") -> Self:
-        new_copy = cls(subgroup.free_group, code="called from SubgroupOfFreeGroup._cast")
+    def _cast(cls, subgroup: "_SubgroupOfFreeGroupBase") -> Self:
+        new_copy = cls(
+            subgroup.free_group, code="called from SubgroupOfFreeGroup._cast"
+        )
         vertex_mapping = {subgroup._identity_vertex: new_copy._identity_vertex}
         for vertex in subgroup._vertices():
             if vertex != subgroup._identity_vertex:
@@ -442,9 +453,9 @@ class SubgroupOfFreeGroup(_SubgroupOfFreeGroup):
         for edge in subgroup._edges():
             Edge(vertex_mapping[edge.source], edge.elem, vertex_mapping[edge.target])
         return new_copy
-    
-    @classonlymethod
-    def detect_type(cls, subgroup : "_SubgroupOfFreeGroup") -> "SubgroupOfFreeGroup":
+
+    @purestaticmethod
+    def detect_type(subgroup: "_SubgroupOfFreeGroupBase") -> "SubgroupOfFreeGroup":
         if subgroup.is_normal() and subgroup.has_finite_index():
             return NormalFiniteIndexSubgroupOfFreeGroup._cast(subgroup)
         if subgroup.is_normal():
@@ -453,8 +464,9 @@ class SubgroupOfFreeGroup(_SubgroupOfFreeGroup):
             return FiniteIndexSubgroupOfFreeGroup._cast(subgroup)
         return SubgroupOfFreeGroup._cast(subgroup)
 
+
 class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
-    
+
     @cached_value
     def right_coset_representatives(self) -> List[FreeGroupElement]:
         self._relabel()
@@ -463,15 +475,14 @@ class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
     def left_coset_representatives(self) -> List[FreeGroupElement]:
         return [~elem for elem in self.right_coset_representatives()]
 
-    
     def express_with_right_coset_representative(
-            self, elem: FreeGroupElement
-        ) -> Tuple[Word[FreeGroupElement], FreeGroupElement]:
+        self, elem: FreeGroupElement
+    ) -> Tuple[Word[FreeGroupElement], FreeGroupElement]:
         path = self._identity_vertex.walk_word(elem)
         if path is None:
             assert False, "This should never happen."
         edges, vertex = path
-        
+
         coset_rep = vertex.elem
 
         word = Word[FreeGroupElement]().identity()
@@ -481,8 +492,7 @@ class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
                 word.add(gen, sign)
 
         return word, coset_rep
-    
-    
+
     @cached_value
     def core(self) -> "NormalFiniteIndexSubgroupOfFreeGroup":
         res = self.free_group.intersect_subgroups(
@@ -495,13 +505,19 @@ class FiniteIndexSubgroupOfFreeGroup(SubgroupOfFreeGroup):
     def index(self) -> int:
         return len(self._vertices())
 
+
 class NormalSubgroupOfFreeGroup(SubgroupOfFreeGroup):
     pass
+
 
 if TYPE_CHECKING:
     from finite_group import FiniteGroup
 
-class NormalFiniteIndexSubgroupOfFreeGroup(FiniteIndexSubgroupOfFreeGroup, NormalSubgroupOfFreeGroup):
+
+class NormalFiniteIndexSubgroupOfFreeGroup(
+    FiniteIndexSubgroupOfFreeGroup, NormalSubgroupOfFreeGroup
+):
     def quotient(self) -> "FiniteGroup":
         from finite_group import FiniteGroup
+
         return FiniteGroup(self)

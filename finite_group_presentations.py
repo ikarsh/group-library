@@ -12,6 +12,7 @@ def C(n: int) -> FiniteGroup:
     assert isinstance(kernel, NormalFiniteIndexSubgroupOfFreeGroup)
     return kernel.quotient()
 
+
 def dir_prod(gps: List[FiniteGroup]) -> FiniteGroup:
     F = FreeGroup(
         tuple(
@@ -40,6 +41,7 @@ def dir_prod(gps: List[FiniteGroup]) -> FiniteGroup:
     kernel = F.normal_subgroup(relations)
     assert isinstance(kernel, NormalFiniteIndexSubgroupOfFreeGroup)
     return kernel.quotient()
+
 
 def D(n: int) -> FiniteGroup:
     F = FreeGroup(("a", "b"))
@@ -78,6 +80,7 @@ def S(n: int) -> FiniteGroup:
     )
     assert isinstance(kernel, NormalFiniteIndexSubgroupOfFreeGroup)
     return kernel.quotient()
+
 
 def S_(
     n: int,
@@ -131,7 +134,7 @@ def SL2(n: int) -> FiniteGroup:
         raise NotImplementedError("SL2(Z/n) is only implemented for odd n")
     F = FreeGroup(("a", "b"))
     a, b = F.gens()
-    kernel =  F.normal_subgroup(
+    kernel = F.normal_subgroup(
         [
             a**n * b ** (-2),
             (a * b) ** 3 * b ** (-2),
@@ -140,7 +143,6 @@ def SL2(n: int) -> FiniteGroup:
     )
     assert isinstance(kernel, NormalFiniteIndexSubgroupOfFreeGroup)
     return kernel.quotient()
-
 
 
 def PSL2(n: int) -> FiniteGroup:

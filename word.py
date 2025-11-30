@@ -5,7 +5,6 @@ from utils import sign
 T = TypeVar("T")
 
 
-
 class Word(Generic[T]):
     # Words should always be reduced.
 

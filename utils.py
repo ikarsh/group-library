@@ -3,13 +3,10 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Concatenate,
     Dict,
-    Generic,
     Literal,
     Optional,
     ParamSpec,
-    Type,
     TypeVar,
 )
 
@@ -39,21 +36,27 @@ R = TypeVar("R")
 
 if TYPE_CHECKING:
     classonlymethod = classmethod[T, P, R]
+    purestaticmethod = staticmethod[P, R]
 else:
 
-    class classonlymethod(Generic[P, R]):
-        def __init__(self, func: Callable[Concatenate[Any, P], R]) -> None:
-            self.func = func
+    class classonlymethod(classmethod):
 
-        def __get__(self, obj: Any, cls: Type[Any] | None) -> Callable[P, R]:
+        def __get__(self, obj, cls=None):
             if obj is not None or cls is None:
                 raise TypeError("Cannot call class-only method on instance")
+            return super().__get__(obj, cls)
+            # # Bind the class as first argument
+            # def bound(*args: P.args, **kwargs: P.kwargs) -> R:
+            #     return self.func(cls, *args, **kwargs)
 
-            # Bind the class as first argument
-            def bound(*args: P.args, **kwargs: P.kwargs) -> R:
-                return self.func(cls, *args, **kwargs)
+            # return bound
 
-            return bound
+    class purestaticmethod(staticmethod):
+        def __get__(self, obj, cls=None):
+            if obj is not None:
+                raise TypeError("Cannot call class-only static method on instance")
+            return super().__get__(obj, cls)
+            # return self.func
 
 
 S = TypeVar("S", bound="Cached")

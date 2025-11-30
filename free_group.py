@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from subgroup_of_free_group import SubgroupOfFreeGroup, NormalSubgroupOfFreeGroup
 
 
-
 class FreeGroup:
     def __init__(self, _gens: Tuple[str, ...] | int, name: Optional[str] = None):
         self._name = name
@@ -49,7 +48,9 @@ class FreeGroup:
     def rank(self):
         return len(self.gens())
 
-    def __iter__(self, *, max_len: Optional[int] = None) -> Iterator["FreeGroupElement"]:
+    def __iter__(
+        self, *, max_len: Optional[int] = None
+    ) -> Iterator["FreeGroupElement"]:
         # Iterates over the words in the group, up to a certain length.
         def paths(w: FreeGroupElement, len: int) -> Iterator[FreeGroupElement]:
             if len == 0:
