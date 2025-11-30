@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List
 from finite_group import FiniteGroup, FiniteGroupElement
 from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
+from utils import is_power_of
 
 if TYPE_CHECKING:
 
@@ -248,12 +249,26 @@ def test_relative_subgroups():
 def test_A4_subgroup():
     A4 = A(4)
     a, b = A4.gens()
-    V = A4.subgroup([a * b]).normalizer_in(A4)
+    assert (a * b).order() == 2  # A permutation of type (1 2)(3 4)
+    V = A4.subgroup([a * b]).normalizer_in(
+        A4
+    )  # {e, (1 2)(3 4), (1 3)(2 4), (1 4)(2 3)}
     assert V.order() == 4
-    # TODO fix this nonsense, can't say it is identity
-    assert (a**4 == a**2 for a in V.elements())
+    assert all(x.order() in (1, 2) for x in V.elements())
     assert (A4 / V).order() == 3
     assert V.centralizer_in(A4) == V
+
+
+def test_p_sylow():
+    for G in [A(4), S(4), D(8), GQ(4), SL2(3), PSL2(5)]:
+        for p in [2, 3, 5, 7]:
+            P = G.p_sylow_subgroup(p)
+            assert G.contains_subgroup(P)
+            assert is_power_of(P.order(), p)
+            assert (G.order() // P.order()) % p != 0
+
+            # The amount of conjugations
+            assert (G.order() // P.normalizer_in(G).order()) % p == 1
 
 
 def test_all():
@@ -266,3 +281,4 @@ def test_all():
     test_finite_groups()
     test_relative_subgroups()
     test_A4_subgroup()
+    test_p_sylow()

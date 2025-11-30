@@ -145,3 +145,11 @@ def instance_cache(
         return result
 
     return wrapper
+
+
+def is_power_of(n: int, base: int) -> bool:
+    if not (n > 0 and base > 1):
+        raise ValueError("n must be positive and base must be greater than 1.")
+    while n % base == 0:
+        n //= base
+    return n == 1
