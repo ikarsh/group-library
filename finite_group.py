@@ -128,6 +128,44 @@ class FiniteGroup:
 
         return other.subgroup(elements)
 
+    def conjugate_in(
+        self, other: "FiniteGroup", g: "FiniteGroupElement"
+    ) -> "FiniteGroup":
+        if not other.contains_subgroup(self):
+            raise ValueError("The other group must contain this group.")
+        if not g.group == other:
+            raise ValueError("The element must be from the other group.")
+
+        return other.subgroup(
+            [FiniteGroupElement(other, gen.rep.conjugate(g.rep)) for gen in self.gens()]
+        )
+
+    def right_coset_representatives_in(
+        self, other: "FiniteGroup"
+    ) -> List["FiniteGroupElement"]:
+        if not other.contains_subgroup(self):
+            raise ValueError("The other group must contain this group.")
+
+        return [
+            FiniteGroupElement(other, rep)
+            for rep in self.lift_group.right_coset_representatives_in(other.lift_group)
+        ]
+
+    def left_coset_representatives_in(
+        self, other: "FiniteGroup"
+    ) -> List["FiniteGroupElement"]:
+        return [~g for g in self.right_coset_representatives_in(other)]
+
+    @instance_cache
+    def conjugates_in(self, other: "FiniteGroup") -> List["FiniteGroup"]:
+        if not other.contains_subgroup(self):
+            raise ValueError("The other group must contain this group.")
+
+        return [
+            self.conjugate_in(other, g)
+            for g in self.left_coset_representatives_in(other)
+        ]
+
     @instance_cache
     def normalizer_in(self, other: "FiniteGroup") -> "FiniteGroup":
         if not other.contains_subgroup(self):
@@ -135,10 +173,7 @@ class FiniteGroup:
 
         elements: List[FiniteGroupElement] = []
         for g in other.elements():
-            if all(
-                self.lift_group.contains_element(free_group_commutator(g.rep, h.rep))
-                for h in self.gens()
-            ):
+            if self.conjugate_in(other, g) == self:
                 elements.append(FiniteGroupElement(other, g.rep))
 
         return other.subgroup(elements)
@@ -226,7 +261,8 @@ class FiniteGroup:
                 return g ** (g.order() // p)
         assert False, "Should never reach here."
 
-    def p_sylow_subgroup(self, p: int) -> "FiniteGroup":
+    # TODO optimize
+    def sylow_subgroup(self, p: int) -> "FiniteGroup":
         if not isprime(p):
             raise ValueError("p must be a prime number.")
 
@@ -275,6 +311,8 @@ class FiniteGroupElement:
     def __pow__(self, n: int) -> "FiniteGroupElement":
         return FiniteGroupElement(self.group, self.rep**n)
 
+    @instance_cache
+    # TODO optimize
     def order(self) -> int:
         e = self.group.identity()
         current = self
@@ -286,9 +324,6 @@ class FiniteGroupElement:
 
     def conjugate(self, other: "FiniteGroupElement") -> "FiniteGroupElement":
         return FiniteGroupElement(self.group, self.rep.conjugate(other.rep))
-
-    def conjugates(self) -> List["FiniteGroupElement"]:
-        return [self.conjugate(g) for g in self.group.elements()]
 
     def __hash__(self):
         return hash((self.group, self.rep))
