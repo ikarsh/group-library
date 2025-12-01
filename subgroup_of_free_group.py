@@ -380,14 +380,6 @@ class SubgroupOfFreeGroup(Cached):
         return True
 
     @purestaticmethod
-    def join_subgroups(
-        free_group: FreeGroup, subgroups: Sequence["SubgroupOfFreeGroup"]
-    ) -> "SubgroupOfFreeGroup":
-        return SubgroupOfFreeGroup.from_relations(
-            free_group, [gen for subgroup in subgroups for gen in subgroup.gens()]
-        )
-
-    @purestaticmethod
     def intersect_subgroups(
         free_group: FreeGroup, graphs: Sequence["SubgroupOfFreeGroup"]
     ) -> "SubgroupOfFreeGroup":
@@ -434,6 +426,14 @@ class SubgroupOfFreeGroup(Cached):
 
         return res
 
+    def with_added_elements(
+        self, elements: Sequence[FreeGroupElement]
+    ) -> "SubgroupOfFreeGroup":
+        res = self.copy()
+        for elem in elements:
+            res._push_word(elem)
+        return res
+
     @instance_cache
     def is_normal_in(self, other: "SubgroupOfFreeGroup | FreeGroup") -> bool:
         if isinstance(other, FreeGroup):
@@ -477,6 +477,21 @@ class SubgroupOfFreeGroup(Cached):
                         normal = False
             if normal:
                 return res
+
+    def normalizer_in(
+        self, other: "SubgroupOfFreeGroup | FreeGroup"
+    ) -> "SubgroupOfFreeGroup":
+        if isinstance(other, FreeGroup):
+            other = SubgroupOfFreeGroup._full_subgroup(other)
+        if not other.contains_subgroup(self):
+            raise ValueError("Cannot normalize a subgroup not contained in the other.")
+
+        gens = list(self.gens())
+        for vertex in self._vertices():
+            elem = vertex.elem
+            if self.conjugate(elem) == self:
+                gens.append(elem)
+        return SubgroupOfFreeGroup.from_relations(other.free_group, gens)
 
     def rank(self) -> int:
         return len(self.gens())

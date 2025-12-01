@@ -1,3 +1,4 @@
+import random
 from typing import TYPE_CHECKING, Any, List
 
 from free_group import FreeGroupElement
@@ -63,18 +64,20 @@ class FiniteGroup:
             raise TypeError()
         return self.lift_group.contains_element(element.rep)
 
-    def subgroup(self, generators: List["FiniteGroupElement"]) -> "FiniteGroup":
-        for g in generators:
-            if g.kernel != self.kernel:
-                raise ValueError("All generators must be from the same group.")
-            if not self.contains_element(g):
-                raise ValueError("All generators must be in the group.")
-        lifted_generators = [g.rep for g in generators]
-        for gen in self.kernel.gens():
-            lifted_generators.append(gen)
+    def with_added_elements(self, elements: List["FiniteGroupElement"]):
+        for elem in elements:
+            if elem.kernel != self.kernel:
+                raise ValueError("All elements must be from the same group.")
+        return (
+            self.lift_group.with_added_elements([elem.rep for elem in elements])
+            / self.kernel
+        )
 
-        lifted_subgroup = self.free_group.subgroup(lifted_generators)
-        return lifted_subgroup / self.kernel
+    def subgroup(self, generators: List["FiniteGroupElement"]) -> "FiniteGroup":
+        for gen in generators:
+            if not self.contains_element(gen):
+                raise ValueError("All generators must be from the group.")
+        return (self.kernel / self.kernel).with_added_elements(generators)
 
     def identity(self) -> "FiniteGroupElement":
         return FiniteGroupElement(
@@ -186,9 +189,7 @@ class FiniteGroup:
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
 
-        return other.subgroup(
-            [g for g in other.elements() if self.conjugate(g) == self]
-        )
+        return self.lift_group.normalizer_in(other.lift_group) / self.kernel
 
     @instance_cache
     def derived_subgroup(self) -> "FiniteGroup":
@@ -272,15 +273,14 @@ class FiniteGroup:
         curr_subgroup = self.subgroup([])
 
         while (self.order() // curr_subgroup.order()) % p == 0:
-            for g in p_elements:
-                if curr_subgroup.contains_element(g):
-                    continue
-                if curr_subgroup.conjugate(g) != curr_subgroup:
-                    continue
-                curr_subgroup = self.subgroup(list(curr_subgroup.gens()) + [g])
-                break
-            else:
-                assert False, "Should never reach here."
+            g = random.choice(p_elements)
+            if curr_subgroup.contains_element(g):
+                continue
+            while not curr_subgroup.contains_element(g**p):
+                g = g**p
+            if curr_subgroup.conjugate(g) != curr_subgroup:
+                continue
+            curr_subgroup = curr_subgroup.with_added_elements([g])
         return curr_subgroup
 
 

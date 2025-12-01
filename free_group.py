@@ -78,26 +78,19 @@ class FreeGroup:
 
         return SubgroupOfFreeGroup.from_relations(self, relations)
 
-    def normal_subgroup(
-        self, relations: Sequence["FreeGroupElement"]
-    ) -> "SubgroupOfFreeGroup":
-        return self.subgroup(relations).normalization_in(self)
+    def empty_subgroup(self) -> "SubgroupOfFreeGroup":
+        return self.subgroup([])
 
     def full_subgroup(self) -> "SubgroupOfFreeGroup":
         return self.subgroup([gen for gen in self.gens()])
 
-    def empty_subgroup(self) -> "SubgroupOfFreeGroup":
-        return self.subgroup([])
-
     def join_subgroups(
         self, subgroups: Sequence["SubgroupOfFreeGroup"]
     ) -> "SubgroupOfFreeGroup":
-        from subgroup_of_free_group import SubgroupOfFreeGroup
-
-        return SubgroupOfFreeGroup.join_subgroups(self, subgroups)
-        # return SubgroupOfFreeGroup.from_relations(
-        #     self, [gen for subgroup in subgroups for gen in subgroup.gens()]
-        # )
+        res = self.empty_subgroup()
+        for subgroup in subgroups:
+            res = res.with_added_elements(subgroup.gens())
+        return res
 
     def intersect_subgroups(
         self, subgroups: Sequence["SubgroupOfFreeGroup"]
@@ -105,6 +98,11 @@ class FreeGroup:
         from subgroup_of_free_group import SubgroupOfFreeGroup
 
         return SubgroupOfFreeGroup.intersect_subgroups(self, subgroups)
+
+    def normal_subgroup(
+        self, relations: Sequence["FreeGroupElement"]
+    ) -> "SubgroupOfFreeGroup":
+        return self.subgroup(relations).normalization_in(self)
 
 
 @total_ordering
@@ -183,6 +181,20 @@ class FreeGroupElement(Word["FreeGroupGenerator"]):
         for gen, pow in self:
             res *= mapping[gen] ** pow
         return res
+
+    def conjugates_in(self, G: "SubgroupOfFreeGroup") -> List["FreeGroupElement"]:
+        if not self.free_group == G.free_group:
+            raise ValueError(
+                "Element must be from the same free group as the subgroup."
+            )
+        if not G.contains_element(self):
+            raise ValueError(
+                "Element must be in the subgroup to compute its conjugacy class."
+            )
+        normalizer = self.free_group.subgroup([self]).normalizer_in(G)
+        if not normalizer.has_finite_index_in(G):
+            raise ValueError("Conjugacy class is infinite.")
+        return [self.conjugate(g) for g in normalizer.left_coset_representatives_in(G)]
 
 
 class FreeGroupGenerator(FreeGroupElement):
