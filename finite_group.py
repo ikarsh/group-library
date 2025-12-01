@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, Iterator, List
 
 from free_group import FreeGroupElement
 from subgroup_of_free_group import SubgroupOfFreeGroup
-from utils import instance_cache
+from utils import instance_cache, is_power_of
 
 
 if TYPE_CHECKING:
@@ -268,9 +268,11 @@ class FiniteGroup:
             raise ValueError("p must be a prime number.")
         if not self.order() % p == 0:
             raise ValueError("The group order must be divisible by p.")
-        for g in self.elements():
-            if g.order() % p == 0:
-                return g ** (g.order() // p)
+        for H in self.minimal_p_subgroup_classes(p):
+            for g in H.gens():
+                if not g.is_trivial():
+                    return g
+            assert False, "Should never reach here."
         assert False, "Should never reach here."
 
     # TODO optimize
@@ -278,15 +280,36 @@ class FiniteGroup:
         if not isprime(p):
             raise ValueError("p must be a prime number.")
 
+        p_elements = [g for g in self.elements() if is_power_of(g.order(), p)]
         curr_subgroup = self.subgroup([])
+
         while (self.order() // curr_subgroup.order()) % p == 0:
-            g = (
-                (curr_subgroup.normalizer_in(self) / curr_subgroup)
-                .p_order_element(p)
-                .lift_to(self)
-            )
-            curr_subgroup = self.subgroup(list(curr_subgroup.gens()) + [g])
+            for g in p_elements:
+                if curr_subgroup.contains_element(g):
+                    continue
+                if curr_subgroup.conjugate(g) != curr_subgroup:
+                    continue
+                curr_subgroup = self.subgroup(list(curr_subgroup.gens()) + [g])
+                break
+            else:
+                assert False, "Should never reach here."
         return curr_subgroup
+
+    def minimal_p_subgroup_classes(self, p: int) -> Iterator["FiniteGroup"]:
+        subgps: List[FiniteGroup] = []
+        for g in self.elements():
+            if g.is_trivial():
+                continue
+            if g.order() % p != 0:
+                continue
+            subgroup = self.subgroup([g])
+
+            for conj in subgroup.conjugates_in(self):
+                if conj in subgps:
+                    continue
+
+            yield subgroup
+            subgps.append(subgroup)
 
 
 def commutator(
