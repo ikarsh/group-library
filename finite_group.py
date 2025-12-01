@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, List
 
-from free_group import FreeGroupElement, commutator as free_group_commutator
+from free_group import FreeGroupElement
 from subgroup_of_free_group import SubgroupOfFreeGroup
 from utils import instance_cache
 
@@ -40,29 +40,48 @@ class FiniteGroup:
     def gens(self) -> List["FiniteGroupElement"]:
         gens: List["FiniteGroupElement"] = []
         for gen in self.lift_group.gens():
-            gens.append(FiniteGroupElement(self, gen))
+            gens.append(
+                FiniteGroupElement(
+                    self.kernel, gen, code="I promise element normalizes kernel"
+                )
+            )
         return gens
 
     @instance_cache
     def elements(self) -> List["FiniteGroupElement"]:
         elems: List["FiniteGroupElement"] = []
         for rep in self.kernel.right_coset_representatives_in(self.lift_group):
-            elems.append(FiniteGroupElement(self, rep))
+            elems.append(
+                FiniteGroupElement(
+                    self.kernel, rep, code="I promise element normalizes kernel"
+                )
+            )
         return elems
 
-    def subgroup(self, relations: List["FiniteGroupElement"]) -> "FiniteGroup":
-        for rel in relations:
-            if rel.group != self:
-                raise ValueError("All relations must be from the same group.")
-        lifted_relations = [rel.rep for rel in relations]
-        for gen in self.kernel.gens():
-            lifted_relations.append(gen)
+    def contains_element(self, element: "FiniteGroupElement") -> bool:
+        if element.kernel != self.kernel:
+            raise TypeError()
+        return self.lift_group.contains_element(element.rep)
 
-        lifted_subgroup = self.free_group.subgroup(lifted_relations)
+    def subgroup(self, generators: List["FiniteGroupElement"]) -> "FiniteGroup":
+        for g in generators:
+            if g.kernel != self.kernel:
+                raise ValueError("All generators must be from the same group.")
+            if not self.contains_element(g):
+                raise ValueError("All generators must be in the group.")
+        lifted_generators = [g.rep for g in generators]
+        for gen in self.kernel.gens():
+            lifted_generators.append(gen)
+
+        lifted_subgroup = self.free_group.subgroup(lifted_generators)
         return lifted_subgroup / self.kernel
 
     def identity(self) -> "FiniteGroupElement":
-        return FiniteGroupElement(self, self.free_group.identity())
+        return FiniteGroupElement(
+            self.kernel,
+            self.free_group.identity(),
+            code="I promise element normalizes kernel",
+        )
 
     @instance_cache
     def contains_subgroup(self, other: "FiniteGroup") -> bool:
@@ -118,27 +137,19 @@ class FiniteGroup:
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
 
-        elements: List[FiniteGroupElement] = []
-        for g in other.elements():
-            if all(
-                self.kernel.contains_element(free_group_commutator(g.rep, h.rep))
-                for h in self.gens()
-            ):
-                elements.append(FiniteGroupElement(other, g.rep))
-
-        return other.subgroup(elements)
-
-    def conjugate_in(
-        self, other: "FiniteGroup", g: "FiniteGroupElement"
-    ) -> "FiniteGroup":
-        if not other.contains_subgroup(self):
-            raise ValueError("The other group must contain this group.")
-        if not g.group == other:
-            raise ValueError("The element must be from the other group.")
-
         return other.subgroup(
-            [FiniteGroupElement(other, gen.rep.conjugate(g.rep)) for gen in self.gens()]
+            [
+                g
+                for g in other.elements()
+                if all(commutator(g, h) == other.identity() for h in self.gens())
+            ]
         )
+
+    def conjugate(self, g: "FiniteGroupElement") -> "FiniteGroup":
+        if not self.kernel == g.kernel:
+            raise TypeError()
+
+        return self.lift_group.conjugate(g.rep) / self.kernel
 
     def right_coset_representatives_in(
         self, other: "FiniteGroup"
@@ -147,7 +158,9 @@ class FiniteGroup:
             raise ValueError("The other group must contain this group.")
 
         return [
-            FiniteGroupElement(other, rep)
+            FiniteGroupElement(
+                other.kernel, rep, code="I promise element normalizes kernel"
+            )
             for rep in self.lift_group.right_coset_representatives_in(other.lift_group)
         ]
 
@@ -161,22 +174,16 @@ class FiniteGroup:
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
 
-        return [
-            self.conjugate_in(other, g)
-            for g in self.left_coset_representatives_in(other)
-        ]
+        return [self.conjugate(g) for g in self.left_coset_representatives_in(other)]
 
     @instance_cache
     def normalizer_in(self, other: "FiniteGroup") -> "FiniteGroup":
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
 
-        elements: List[FiniteGroupElement] = []
-        for g in other.elements():
-            if self.conjugate_in(other, g) == self:
-                elements.append(FiniteGroupElement(other, g.rep))
-
-        return other.subgroup(elements)
+        return other.subgroup(
+            [g for g in other.elements() if self.conjugate(g) == self]
+        )
 
     @instance_cache
     def derived_subgroup(self) -> "FiniteGroup":
@@ -268,15 +275,12 @@ class FiniteGroup:
 
         curr_subgroup = self.subgroup([])
         while (self.order() // curr_subgroup.order()) % p == 0:
-            g = FiniteGroupElement(
-                self,
+            g = (
                 (curr_subgroup.normalizer_in(self) / curr_subgroup)
                 .p_order_element(p)
-                .rep,
+                .lift_to(self)
             )
-            curr_subgroup = self.subgroup(
-                [FiniteGroupElement(self, _g.rep) for _g in curr_subgroup.gens()] + [g]
-            )
+            curr_subgroup = self.subgroup(list(curr_subgroup.gens()) + [g])
         return curr_subgroup
 
 
@@ -287,43 +291,68 @@ def commutator(
 
 
 class FiniteGroupElement:
-    def __init__(self, group: FiniteGroup, representative: "FreeGroupElement"):
-        if not group.lift_group.contains_element(representative):
-            raise ValueError("The representative must be an element of the lift group.")
-        self.group = group
-        _, self.rep = group.kernel.express_with_right_coset_representative(
-            representative
-        )
+    def __init__(
+        self,
+        kernel: "SubgroupOfFreeGroup",
+        elem: "FreeGroupElement",
+        code: str,
+    ):
+        if code != "I promise element normalizes kernel":
+            if not kernel.conjugate(elem) == kernel:
+                raise ValueError("Element must normalize the kernel.")
+        self.kernel = kernel
+        self.rep = kernel.walk_commensurable_word(elem)
 
     def __mul__(self, other: "FiniteGroupElement") -> "FiniteGroupElement":
-        if not self.group == other.group:
+        if not self.kernel == other.kernel:
             raise ValueError("Cannot multiply elements from different groups.")
-        return FiniteGroupElement(self.group, self.rep * other.rep)
+        return FiniteGroupElement(
+            self.kernel,
+            self.rep * other.rep,
+            code="I promise element normalizes kernel",
+        )
 
     def __invert__(self) -> "FiniteGroupElement":
-        return FiniteGroupElement(self.group, ~self.rep)
+        return FiniteGroupElement(
+            self.kernel, ~self.rep, code="I promise element normalizes kernel"
+        )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FiniteGroupElement):
             return False
-        return self.group == other.group and self.rep == other.rep
+        return self.kernel == other.kernel and self.rep == other.rep
 
     def __pow__(self, n: int) -> "FiniteGroupElement":
-        return FiniteGroupElement(self.group, self.rep**n)
+        return FiniteGroupElement(
+            self.kernel, self.rep**n, code="I promise element normalizes kernel"
+        )
+
+    def is_trivial(self) -> bool:
+        return self.kernel.contains_element(self.rep)
 
     @instance_cache
     # TODO optimize
     def order(self) -> int:
-        e = self.group.identity()
         current = self
         order = 1
-        while current != e:
+        while not current.is_trivial():
             current *= self
             order += 1
         return order
 
     def conjugate(self, other: "FiniteGroupElement") -> "FiniteGroupElement":
-        return FiniteGroupElement(self.group, self.rep.conjugate(other.rep))
+        return other * self * ~other
 
     def __hash__(self):
-        return hash((self.group, self.rep))
+        return hash((self.kernel, self.rep))
+
+    def lift_to(self, G: FiniteGroup) -> "FiniteGroupElement":
+        if not self.kernel.contains_subgroup(G.kernel):
+            raise ValueError(
+                "The kernel of the target group must be contained in the kernel of this element's group."
+            )
+        if not G.kernel.conjugate(self.rep) == G.kernel:
+            raise ValueError("The element does not normalize the target kernel.")
+        return FiniteGroupElement(
+            G.kernel, self.rep, code="I promise element normalizes kernel"
+        )

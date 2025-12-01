@@ -277,6 +277,13 @@ class SubgroupOfFreeGroup(Cached):
     def signed_gens(self) -> List[FreeGroupElement]:
         return [g**s for g in self.gens() for s in (-1, 1)]
 
+    def walk_commensurable_word(self, elem: FreeGroupElement):
+        path = self._identity_vertex.walk_word(elem)
+        if path is None:
+            raise ValueError(f"The element {elem} was not commensurable")
+        _edges, vertex = path
+        return vertex.elem
+
     def express(self, elem: FreeGroupElement) -> Optional[Word[FreeGroupElement]]:
         path = self._identity_vertex.walk_word(elem)
         if path is None:
@@ -496,24 +503,6 @@ class SubgroupOfFreeGroup(Cached):
         self, other: "SubgroupOfFreeGroup | FreeGroup"
     ) -> List[FreeGroupElement]:
         return [~elem for elem in self.right_coset_representatives_in(other)]
-
-    def express_with_right_coset_representative(
-        self, elem: FreeGroupElement
-    ) -> Tuple[Word[FreeGroupElement], FreeGroupElement]:
-        path = self._identity_vertex.walk_word(elem)
-        if path is None:
-            assert False, "This should never happen."
-        edges, vertex = path
-
-        coset_rep = vertex.elem
-
-        word = Word[FreeGroupElement]().identity()
-        for edge, sign in edges:
-            gen = self._cycle_generators().get(edge)
-            if gen is not None:
-                word.add(gen, sign)
-
-        return word, coset_rep
 
     @instance_cache
     def core_in(

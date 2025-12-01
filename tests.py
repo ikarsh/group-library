@@ -3,7 +3,7 @@ from math import factorial, prod
 from typing import TYPE_CHECKING, List
 
 
-from finite_group import FiniteGroup, FiniteGroupElement
+from finite_group import FiniteGroup
 from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from utils import is_power_of
@@ -160,8 +160,8 @@ def test_finite_index_subgroup():
 
     for gen in G.gens():
         for conj in conjugates:
-            assert conj.conjugate_in(G, gen) in conjugates
-            assert conj.conjugate_in(G, ~gen) in conjugates
+            assert conj.conjugate(gen) in conjugates
+            assert conj.conjugate(~gen) in conjugates
 
     assert H.core_in(G).is_trivial()
 
