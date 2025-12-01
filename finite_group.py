@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Iterator, List
+from typing import TYPE_CHECKING, Any, List
 
 from free_group import FreeGroupElement
 from subgroup_of_free_group import SubgroupOfFreeGroup
@@ -263,18 +263,6 @@ class FiniteGroup:
                         checked.append(_g)
         return True
 
-    def p_order_element(self, p: int) -> "FiniteGroupElement":
-        if not isprime(p):
-            raise ValueError("p must be a prime number.")
-        if not self.order() % p == 0:
-            raise ValueError("The group order must be divisible by p.")
-        for H in self.minimal_p_subgroup_classes(p):
-            for g in H.gens():
-                if not g.is_trivial():
-                    return g
-            assert False, "Should never reach here."
-        assert False, "Should never reach here."
-
     # TODO optimize
     def sylow_subgroup(self, p: int) -> "FiniteGroup":
         if not isprime(p):
@@ -294,22 +282,6 @@ class FiniteGroup:
             else:
                 assert False, "Should never reach here."
         return curr_subgroup
-
-    def minimal_p_subgroup_classes(self, p: int) -> Iterator["FiniteGroup"]:
-        subgps: List[FiniteGroup] = []
-        for g in self.elements():
-            if g.is_trivial():
-                continue
-            if g.order() % p != 0:
-                continue
-            subgroup = self.subgroup([g])
-
-            for conj in subgroup.conjugates_in(self):
-                if conj in subgps:
-                    continue
-
-            yield subgroup
-            subgps.append(subgroup)
 
 
 def commutator(
