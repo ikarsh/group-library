@@ -174,7 +174,12 @@ class FiniteGroup:
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
 
-        return [self.conjugate(g) for g in self.left_coset_representatives_in(other)]
+        conjugates: List[FiniteGroup] = []
+        for g in self.left_coset_representatives_in(other):
+            conj = self.conjugate(g)
+            if conj not in conjugates:
+                conjugates.append(conj)
+        return conjugates
 
     @instance_cache
     def normalizer_in(self, other: "FiniteGroup") -> "FiniteGroup":

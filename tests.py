@@ -153,7 +153,7 @@ def test_finite_index_subgroup():
     assert H in conjugates
 
     # There are six 5-syllow subgroups of S5!
-    assert len(conjugates) == 24
+    assert len(conjugates) == 6
 
     for conj in conjugates:
         assert conj.order() == 5
@@ -262,7 +262,7 @@ def test_p_sylow():
             assert (G.order() // P.order()) % p != 0
 
             # The amount of conjugations
-            assert (G.order() // P.normalizer_in(G).order()) % p == 1
+            assert len(P.conjugates_in(G)) % p == 1
 
             assert P.is_nilpotent()
 
