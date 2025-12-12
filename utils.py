@@ -5,6 +5,7 @@ from typing import (
     Callable,
     Concatenate,
     Dict,
+    List,
     Literal,
     Optional,
     ParamSpec,
@@ -151,9 +152,11 @@ if TYPE_CHECKING:
 
     def factor(n: int) -> dict[int, int]: ...
     def euler_phi(n: int) -> int: ...
+    def isprime(n: int) -> bool: ...
+    def lcm(l: List[int]) -> int: ...
 
 else:
-    from sympy import factorint, totient
+    from sympy import factorint, totient, isprime, lcm
 
     euler_phi = totient
     factor = factorint

@@ -6,7 +6,7 @@ from typing import List
 from finite_group import FiniteGroup
 from finite_group_presentations import A, C, D, GL2, GQ, PSL2, S, SL2, Unip, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
-from utils import is_power_of, factor, euler_phi
+from utils import is_power_of, factor, euler_phi, isprime
 
 
 def test_free_group_identities():
@@ -217,6 +217,15 @@ def test_finite_groups():
         assert PSL2n.center().order() == 1
         verify_formula(SL2n)
 
+    for n, m in [(3, 2), (4, 2), (3, 4), (4, 3)]:
+        Unipnm = Unip(n, m)
+        assert Unipnm.order() == m ** (n * (n - 1) // 2)
+        assert Unipnm.nilpotency_class() == n - 1
+        assert Unipnm.abelianization().order() == m ** (n - 1)
+        if isprime(m) and n <= m:
+            assert Unipnm.exponent() == m
+        verify_formula(Unipnm)
+
     for q in (2, 3, 4, 5):
         GL2q = GL2(q)
         GL2q_size = (q**2 - 1) * (q**2 - q)
@@ -237,21 +246,17 @@ def test_relative_subgroups():
     assert H2.has_finite_index_in(H1)
 
 
-def test_A4_subgroup():
-    A4 = A(4)
-    a, b = A4.gens()
-    assert (a * b).order() == 2  # A permutation of type (1 2)(3 4)
-    V = A4.subgroup([a * b]).normalizer_in(
-        A4
-    )  # {e, (1 2)(3 4), (1 3)(2 4), (1 4)(2 3)}
-    assert V.order() == 4
-    assert all(x.order() in (1, 2) for x in V.elements())
-    assert (A4 / V).order() == 3
-    assert V.centralizer_in(A4) == V
+def test_S4_structure():
+    S4 = S(4)
+    assert S4.is_solvable() and S4.derived_length() == 3
+    _, A4, V, _ = S4.derived_series()
+    assert A4.order() == 12 and V.order() == 4
+    assert V.exponent() == 2
+    assert V.centralizer_in(S4) == V
 
 
 def test_p_sylow():
-    for G in [A(4), S(4), D(8), GQ(4), SL2(3)]:  # , PSL2(5)]:
+    for G in [A(4), S(4), D(8), GQ(4), SL2(3), PSL2(5)]:
         for p in [2, 3, 5, 7]:
             P = G.sylow_subgroup(p)
             assert G.contains_subgroup(P)
@@ -262,17 +267,6 @@ def test_p_sylow():
             assert len(P.conjugates_in(G)) % p == 1
 
             assert P.is_nilpotent()
-
-
-def test_solvable_and_nilpotent_lengths():
-    G = S(4)
-    assert G.is_solvable()
-    assert G.derived_length() == 3
-    assert not G.is_nilpotent()
-
-    P = Unip(4, 3)
-    assert P.order() == 3**6
-    assert P.nilpotency_class() == 3
 
 
 def test_simple_group():
@@ -292,7 +286,6 @@ def test_all():
     test_finite_index_subgroup()
     test_finite_groups()
     test_relative_subgroups()
-    test_A4_subgroup()
+    test_S4_structure()
     test_p_sylow()
-    test_solvable_and_nilpotent_lengths()
     test_simple_group()

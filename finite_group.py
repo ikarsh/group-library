@@ -1,18 +1,9 @@
 import random
-from typing import TYPE_CHECKING, Any, List
+from typing import Any, List
 
 from free_group import FreeGroupElement
 from subgroup_of_free_group import SubgroupOfFreeGroup
-from utils import instance_cache, is_power_of
-
-
-if TYPE_CHECKING:
-
-    def isprime(n: int) -> bool: ...
-    def lcm(l: List[int]) -> int: ...
-
-else:
-    from sympy import isprime, lcm
+from utils import instance_cache, is_power_of, isprime, lcm
 
 
 class FiniteGroup:
@@ -355,6 +346,10 @@ class FiniteGroup:
                 continue
             curr_subgroup = curr_subgroup.with_added_elements([g])
         return curr_subgroup
+
+    def exponent(self) -> int:
+        exponents = [g.order() for g in self.elements()]
+        return lcm(exponents)
 
 
 def commutator(
