@@ -1,23 +1,12 @@
 import itertools
 from math import factorial, prod
-from typing import TYPE_CHECKING, List
+from typing import List
 
 
 from finite_group import FiniteGroup
-from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, Unip, dir_prod
+from finite_group_presentations import A, C, D, GL2, GQ, PSL2, S, SL2, Unip, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
-from utils import is_power_of
-
-if TYPE_CHECKING:
-
-    def factor(n: int) -> dict[int, int]: ...
-    def euler_phi(n: int) -> int: ...
-
-else:
-    from sympy import factorint, totient
-
-    euler_phi = totient
-    factor = factorint
+from utils import is_power_of, factor, euler_phi
 
 
 def test_free_group_identities():
@@ -227,6 +216,14 @@ def test_finite_groups():
         assert SL2n.center().order() == 2
         assert PSL2n.center().order() == 1
         verify_formula(SL2n)
+
+    for q in (2, 3, 4, 5):
+        GL2q = GL2(q)
+        GL2q_size = (q**2 - 1) * (q**2 - q)
+        assert GL2q.order() == GL2q_size
+        Z = GL2q.center()
+        assert Z.order() == q - 1 and Z.is_cyclic()
+        verify_formula(GL2q)
 
 
 def test_relative_subgroups():

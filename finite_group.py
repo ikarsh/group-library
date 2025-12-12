@@ -337,6 +337,7 @@ class FiniteGroup:
         return True
 
     # TODO optimize
+    @instance_cache
     def sylow_subgroup(self, p: int) -> "FiniteGroup":
         if not isprime(p):
             raise ValueError("p must be a prime number.")

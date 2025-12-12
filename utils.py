@@ -147,6 +147,25 @@ def instance_cache(
     return wrapper
 
 
+if TYPE_CHECKING:
+
+    def factor(n: int) -> dict[int, int]: ...
+    def euler_phi(n: int) -> int: ...
+
+else:
+    from sympy import factorint, totient
+
+    euler_phi = totient
+    factor = factorint
+
+
+def prime_power_base(q: int) -> int:
+    dic = factor(q)
+    if len(dic) != 1:
+        raise ValueError("q is not a prime power")
+    return next(iter(dic.keys()))
+
+
 def is_power_of(n: int, base: int) -> bool:
     if not (n > 0 and base > 1):
         raise ValueError("n must be positive and base must be greater than 1.")
