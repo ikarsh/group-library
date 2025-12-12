@@ -1,5 +1,5 @@
 import random
-from typing import Any, List
+from typing import Any, List, Set
 
 from free_group import FreeGroupElement
 from subgroup_of_free_group import SubgroupOfFreeGroup
@@ -78,6 +78,9 @@ class FiniteGroup:
             kernel=self.kernel,
             code="verified normal and finite index",
         )
+
+    def trivial_subgroup(self) -> "FiniteGroup":
+        return self.subgroup([])
 
     def identity(self) -> "FiniteGroupElement":
         return FiniteGroupElement(
@@ -202,6 +205,18 @@ class FiniteGroup:
         return conjugates
 
     @instance_cache
+    def lift_to(self, G: "FiniteGroup") -> "FiniteGroup":
+        if not G.lift_group.contains_subgroup(
+            self.lift_group
+        ) and self.kernel.contains_subgroup(G.kernel):
+            raise ValueError(
+                "The lift group of the target group must contain the lift group of this group, and the kernel of this group must contain the kernel of the target group."
+            )
+        return (self.kernel / G.kernel).with_added_elements(
+            [g.lift_to(G) for g in self.gens()]
+        )
+
+    @instance_cache
     def normalizer_in(self, other: "FiniteGroup") -> "FiniteGroup":
         if not other.contains_subgroup(self):
             raise ValueError("The other group must contain this group.")
@@ -304,31 +319,6 @@ class FiniteGroup:
         # TODO optimize
         return any(g.order() == self.order() for g in self.elements())
 
-    @instance_cache
-    def is_simple(self) -> bool:
-        if self.is_trivial():
-            return False
-
-        if self.is_cyclic() and isprime(self.order()):
-            return True
-
-        checked: List[FiniteGroupElement] = []
-        for g in self.elements():
-            p = g.order()
-            if not isprime(p):
-                continue
-            if g in checked:
-                continue
-            if self.subgroup([g]).normalization_in(self) != self:
-                return False
-            # Add all powers and conjugations
-            for i in range(1, p):
-                for elm in self.elements():
-                    _g = (g**i).conjugate(elm)
-                    if _g not in checked:
-                        checked.append(_g)
-        return True
-
     # TODO optimize
     @instance_cache
     def sylow_subgroup(self, p: int) -> "FiniteGroup":
@@ -336,7 +326,7 @@ class FiniteGroup:
             raise ValueError("p must be a prime number.")
 
         p_elements = [g for g in self.elements() if is_power_of(g.order(), p)]
-        curr_subgroup = self.subgroup([])
+        curr_subgroup = self.trivial_subgroup()
 
         while (self.order() // curr_subgroup.order()) % p == 0:
             g = random.choice(p_elements)
@@ -357,6 +347,57 @@ class FiniteGroup:
     @instance_cache
     def is_perfect(self) -> bool:
         return self.abelianization().is_trivial()
+
+    @instance_cache
+    def minimal_subgroups_up_to_conjugacy(self) -> List["FiniteGroup"]:
+        res: List["FiniteGroup"] = []
+        checked: Set[FiniteGroupElement] = set()
+        for g in self.elements():
+            p = g.order()
+            if not isprime(p):
+                continue
+            if g in checked:
+                continue
+            C = self.subgroup([g])
+            res.append(C)
+            # Add all powers and conjugations
+            for i in range(1, p):
+                for elm in C.left_coset_representatives_in(self):
+                    _g = (g**i).conjugate(elm)
+                    checked.add(_g)
+        return res
+
+    @instance_cache
+    def maximal_normal_subgroup(self) -> "FiniteGroup":
+        norm = self.trivial_subgroup()
+        for C in self.minimal_subgroups_up_to_conjugacy():
+            norm = C.normalization_in(self)
+            if norm != self:
+                N_bar = (self / norm).maximal_normal_subgroup()
+                return N_bar.lift_to(self)
+        return self.trivial_subgroup()
+
+    @instance_cache
+    def is_simple(self) -> bool:
+        return self.maximal_normal_subgroup().is_trivial()
+
+    @instance_cache
+    def composition_series(self) -> List["FiniteGroup"]:
+        series: List["FiniteGroup"] = [self]
+        current_group = self
+        while current_group.order() > 1:
+            next_group = current_group.maximal_normal_subgroup()
+            series.append(next_group)
+            current_group = next_group
+        return series
+
+    @instance_cache
+    def composition_factors(self) -> List["FiniteGroup"]:
+        series = self.composition_series()
+        factors: List["FiniteGroup"] = []
+        for i in range(len(series) - 1):
+            factors.append(series[i] / series[i + 1])
+        return factors
 
 
 def commutator(
@@ -419,7 +460,8 @@ class FiniteGroupElement:
         return other * self * ~other
 
     def __hash__(self):
-        return hash((self.kernel, self.rep))
+        # Note that hash does not depend on the kernel.
+        return hash((self.rep.free_group, tuple(self.rep.word)))
 
     def lift_to(self, G: FiniteGroup) -> "FiniteGroupElement":
         if not self.kernel.contains_subgroup(G.kernel):

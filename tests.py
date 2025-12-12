@@ -245,6 +245,12 @@ def test_simple_group():
     assert PSL2(7).is_simple()
 
 
+def test_composition_series():
+    for G in [S(5), GL2(3)]:
+        for factor in G.composition_factors():
+            assert factor.is_simple()
+
+
 def test_all():
     test_free_group_identities()
     test_subgroup_creation()
@@ -256,3 +262,4 @@ def test_all():
     test_S4_structure()
     test_p_sylow()
     test_simple_group()
+    test_composition_series()
