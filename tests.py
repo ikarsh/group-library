@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, List
 
 
 from finite_group import FiniteGroup
-from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, dir_prod
+from finite_group_presentations import A, C, D, GQ, PSL2, S, SL2, Unip, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from utils import is_power_of
 
@@ -267,6 +267,17 @@ def test_p_sylow():
             assert P.is_nilpotent()
 
 
+def test_solvable_and_nilpotent_lengths():
+    G = S(4)
+    assert G.is_solvable()
+    assert G.derived_length() == 3
+    assert not G.is_nilpotent()
+
+    P = Unip(4, 3)
+    assert P.order() == 3**6
+    assert P.nilpotency_class() == 3
+
+
 def test_simple_group():
     assert C(2).is_simple()
     assert not C(4).is_simple()
@@ -286,4 +297,5 @@ def test_all():
     test_relative_subgroups()
     test_A4_subgroup()
     test_p_sylow()
+    test_solvable_and_nilpotent_lengths()
     test_simple_group()

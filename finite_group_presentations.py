@@ -147,3 +147,25 @@ def PSL2(n: int) -> FiniteGroup:
             (a ** ((n + 1) // 2) * b * a**4 * b) ** 2,
         ]
     )
+
+
+def Unip(n: int, m: int) -> FiniteGroup:
+    """
+    The group of upper unitriangular n x n matrices over Z/mZ.
+    Source: https://sites.math.duke.edu/~dasgupta/papers/Unipotent.pdf
+    """
+    F = FreeGroup(n - 1)
+    gens = F.gens()
+    commutators = [commutator(gens[i], gens[i + 1]) for i in range(n - 2)]
+    relations: List[FreeGroupElement] = []
+    for i in range(n - 1):
+        relations.append(gens[i] ** m)
+    for i in range(n - 1):
+        for j in range(i + 2, n - 1):
+            relations.append(commutator(gens[i], gens[j]))
+    for i in range(n - 2):
+        relations.append(commutator(gens[i], commutators[i]))
+        relations.append(commutator(gens[i + 1], commutators[i]))
+    for i in range(n - 3):
+        relations.append(commutator(commutators[i], commutators[i + 1]))
+    return F / F.normal_subgroup(relations)

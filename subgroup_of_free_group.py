@@ -309,6 +309,8 @@ class SubgroupOfFreeGroup(Cached):
 
     @instance_cache
     def contains_subgroup(self, other: "SubgroupOfFreeGroup") -> bool:
+        if self.free_group != other.free_group:
+            raise ValueError("Cannot compare subgroups of different free groups.")
         for gen in other.gens():
             if not self.contains_element(gen):
                 return False
@@ -319,6 +321,8 @@ class SubgroupOfFreeGroup(Cached):
             return False
         if self.free_group != other.free_group:
             return False
+        if self.gens() == other.gens():
+            return True
         return self.contains_subgroup(other) and other.contains_subgroup(self)
 
     def __repr__(self) -> str:
@@ -363,8 +367,6 @@ class SubgroupOfFreeGroup(Cached):
     def has_finite_index_in(self, other: "SubgroupOfFreeGroup | FreeGroup") -> bool:
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
         if not other.contains_subgroup(self):
             raise ValueError("The other subgroup must contain this subgroup.")
         for vertex in other._vertices():
@@ -429,6 +431,8 @@ class SubgroupOfFreeGroup(Cached):
     def with_added_elements(
         self, elements: Sequence[FreeGroupElement]
     ) -> "SubgroupOfFreeGroup":
+        if len(elements) == 0:
+            return self
         res = self.copy()
         for elem in elements:
             res._push_word(elem)
@@ -438,18 +442,18 @@ class SubgroupOfFreeGroup(Cached):
     def is_normal_in(self, other: "SubgroupOfFreeGroup | FreeGroup") -> bool:
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
         if not other.contains_subgroup(self):
             raise ValueError("The other subgroup must contain this subgroup.")
+        if self == other:
+            return True
         for gen in self.gens():
             for a in other.gens():
-                # TODO: figure out when we can get away with not checking inverses.
-                # Should work for other = free_group.
+                # I believe we can get away without checking inverses
+                # because of an argument on the graph of the subgroup.
                 if not self.contains_element(gen.conjugate(a)):
                     return False
-                if not self.contains_element(gen.conjugate(~a)):
-                    return False
+                # if not self.contains_element(gen.conjugate(~a)):
+                #     return False
         return True
 
     @instance_cache
@@ -502,10 +506,6 @@ class SubgroupOfFreeGroup(Cached):
     ) -> List[FreeGroupElement]:
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
-        if not other.contains_subgroup(self):
-            raise ValueError("The other subgroup must contain this subgroup.")
         if not self.has_finite_index_in(other):
             raise ValueError(
                 "The other subgroup must have finite index over this subgroup."
@@ -525,10 +525,6 @@ class SubgroupOfFreeGroup(Cached):
     ) -> "SubgroupOfFreeGroup":
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
-        if not other.contains_subgroup(self):
-            raise ValueError("The other subgroup must contain this subgroup.")
         if not self.has_finite_index_in(other):
             raise ValueError(
                 "The other subgroup must have finite index over this subgroup."
@@ -543,10 +539,6 @@ class SubgroupOfFreeGroup(Cached):
         # return len(self._vertices())
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
-        if not other.contains_subgroup(self):
-            raise ValueError("The other subgroup must contain this subgroup.")
         if not self.has_finite_index_in(other):
             raise ValueError(
                 "The other subgroup must have finite index over this subgroup."
@@ -557,19 +549,19 @@ class SubgroupOfFreeGroup(Cached):
     def __truediv__(self, other: "SubgroupOfFreeGroup") -> "FiniteGroup":
         return other.__rtruediv__(self)
 
+    @instance_cache
     def __rtruediv__(self, other: "SubgroupOfFreeGroup | FreeGroup") -> "FiniteGroup":
         from finite_group import FiniteGroup
 
         if isinstance(other, FreeGroup):
             other = SubgroupOfFreeGroup._full_subgroup(other)
-        if self.free_group != other.free_group:
-            raise ValueError("Cannot compare subgroups of different free groups.")
-        if not other.contains_subgroup(self):
-            raise ValueError("The other subgroup must contain this subgroup.")
+
         if not self.is_normal_in(other):
             raise ValueError("The subgroup must be normal in the other subgroup.")
         if not self.has_finite_index_in(other):
             raise NotImplementedError(
                 "Quotients by infinite index normal subgroups are not implemented."
             )
-        return FiniteGroup(other, self, code="from SubgroupOfFreeGroup __rdiv__")
+        return FiniteGroup(
+            lift_group=other, kernel=self, code="verified normal and finite index"
+        )
