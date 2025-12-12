@@ -96,7 +96,7 @@ class FiniteGroup:
     @instance_cache
     def is_normal_in(self, other: "FiniteGroup") -> bool:
         if not other.contains_subgroup(self):
-            return False
+            raise ValueError("The other group must contain this group.")
         return self.lift_group.is_normal_in(other.lift_group)
 
     @instance_cache
@@ -110,9 +110,8 @@ class FiniteGroup:
             code="verified normal and finite index",
         )
 
+    @instance_cache
     def __truediv__(self, other: "FiniteGroup") -> "FiniteGroup":
-        if not self.contains_subgroup(other):
-            raise ValueError("The other group must be contained in this group.")
         if not other.is_normal_in(self):
             raise ValueError("The other group must be normal in this group.")
         return FiniteGroup(
@@ -170,6 +169,7 @@ class FiniteGroup:
             code="verified normal and finite index",
         )
 
+    @instance_cache
     def right_coset_representatives_in(
         self, other: "FiniteGroup"
     ) -> List["FiniteGroupElement"]:
@@ -183,6 +183,7 @@ class FiniteGroup:
             for rep in self.lift_group.right_coset_representatives_in(other.lift_group)
         ]
 
+    @instance_cache
     def left_coset_representatives_in(
         self, other: "FiniteGroup"
     ) -> List["FiniteGroupElement"]:
@@ -211,6 +212,7 @@ class FiniteGroup:
             code="verified normal and finite index",
         )
 
+    @instance_cache
     def commutator_of_subgroup_with_self(
         self, subgroup: "FiniteGroup"
     ) -> "FiniteGroup":
@@ -347,9 +349,14 @@ class FiniteGroup:
             curr_subgroup = curr_subgroup.with_added_elements([g])
         return curr_subgroup
 
+    @instance_cache
     def exponent(self) -> int:
         exponents = [g.order() for g in self.elements()]
         return lcm(exponents)
+
+    @instance_cache
+    def is_perfect(self) -> bool:
+        return self.abelianization().is_trivial()
 
 
 def commutator(

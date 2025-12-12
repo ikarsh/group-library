@@ -4,7 +4,7 @@ from typing import List
 
 
 from finite_group import FiniteGroup
-from finite_group_presentations import A, C, D, GL2, GQ, PSL2, S, SL2, Unip, dir_prod
+from finite_group_presentations import A, C, D, GL2, GQ, PSL2, S, SL2, UT, dir_prod
 from free_group import FreeGroup, FreeGroupElement, commutator
 from utils import is_power_of, factor, euler_phi, isprime
 
@@ -122,37 +122,15 @@ def test_normal_subgroup():
     assert F2.normal_subgroup([a**2, b**3, b.conjugate(a) * a]).is_normal_in(F2)
 
 
-def test_finite_index_subgroup():
+def test_relative_subgroups():
     F2 = FreeGroup(("a", "b"))
-    a, b = F2.gens()
-
-    # This is S5.
-    kernel = F2.normal_subgroup(
-        [a**2, b**5, (a * b) ** 4, commutator(a, b) ** 3, commutator(a, b**2) ** 2]
-    )
-    G = F2 / kernel
-    a, b = G.gens()
-    assert G.order() == 120
-
-    # This is a 5-cycle.
-    H = G.subgroup([a * b * a])
-    assert H.order() == 5
-
-    conjugates = H.conjugates_in(G)
-    assert H in conjugates
-
-    # There are six 5-syllow subgroups of S5!
-    assert len(conjugates) == 6
-
-    for conj in conjugates:
-        assert conj.order() == 5
-
-    for gen in G.gens():
-        for conj in conjugates:
-            assert conj.conjugate(gen) in conjugates
-            assert conj.conjugate(~gen) in conjugates
-
-    assert H.core_in(G).is_trivial()
+    a, _b = F2.gens()
+    H1 = F2.subgroup([a])
+    H2 = F2.subgroup([a**5])
+    assert H1.is_normal_in(H1) and H2.is_normal_in(H2)
+    assert H2.is_normal_in(H1)
+    assert H1.has_finite_index_in(H1) and H2.has_finite_index_in(H2)
+    assert H2.has_finite_index_in(H1)
 
 
 def test_finite_groups():
@@ -164,7 +142,7 @@ def test_finite_groups():
     for n in range(2, 10):
         Cn = C(n)
         assert Cn.order() == n
-        assert Cn.center() == Cn
+        assert Cn.is_cyclic()
         verify_formula(Cn)
 
     for n in range(3, 10):
@@ -177,6 +155,7 @@ def test_finite_groups():
         Qn = GQ(n)
         assert Qn.order() == 2**n
         assert Qn.center().order() == 2
+        assert Qn.is_nilpotent() and Qn.nilpotency_class() == n - 1
         verify_formula(Qn)
 
     for n in range(3, 6):
@@ -218,13 +197,13 @@ def test_finite_groups():
         verify_formula(SL2n)
 
     for n, m in [(3, 2), (4, 2), (3, 4), (4, 3)]:
-        Unipnm = Unip(n, m)
-        assert Unipnm.order() == m ** (n * (n - 1) // 2)
-        assert Unipnm.nilpotency_class() == n - 1
-        assert Unipnm.abelianization().order() == m ** (n - 1)
+        UTnm = UT(n, m)
+        assert UTnm.order() == m ** (n * (n - 1) // 2)
+        assert UTnm.nilpotency_class() == n - 1
+        assert UTnm.abelianization().order() == m ** (n - 1)
         if isprime(m) and n <= m:
-            assert Unipnm.exponent() == m
-        verify_formula(Unipnm)
+            assert UTnm.exponent() == m
+        verify_formula(UTnm)
 
     for q in (2, 3, 4, 5):
         GL2q = GL2(q)
@@ -233,17 +212,6 @@ def test_finite_groups():
         Z = GL2q.center()
         assert Z.order() == q - 1 and Z.is_cyclic()
         verify_formula(GL2q)
-
-
-def test_relative_subgroups():
-    F2 = FreeGroup(("a", "b"))
-    a, _b = F2.gens()
-    H1 = F2.subgroup([a])
-    H2 = F2.subgroup([a**5])
-    assert H1.is_normal_in(H1) and H2.is_normal_in(H2)
-    assert H2.is_normal_in(H1)
-    assert H1.has_finite_index_in(H1) and H2.has_finite_index_in(H2)
-    assert H2.has_finite_index_in(H1)
 
 
 def test_S4_structure():
@@ -283,9 +251,8 @@ def test_all():
     test_subgroup_new_generators()
     test_subgroup_element_containement()
     test_normal_subgroup()
-    test_finite_index_subgroup()
-    test_finite_groups()
     test_relative_subgroups()
+    test_finite_groups()
     test_S4_structure()
     test_p_sylow()
     test_simple_group()

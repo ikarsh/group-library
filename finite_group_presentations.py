@@ -280,7 +280,7 @@ def PSL2(n: int) -> FiniteGroup:
     )
 
 
-def Unip(n: int, m: int) -> FiniteGroup:
+def UT(n: int, m: int) -> FiniteGroup:
     """
     The group of upper unitriangular n x n matrices over Z/mZ.
     Source: https://sites.math.duke.edu/~dasgupta/papers/Unipotent.pdf
