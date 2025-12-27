@@ -100,9 +100,9 @@ class FreeGroup:
         return SubgroupOfFreeGroup.intersect_subgroups(self, subgroups)
 
     def normal_subgroup(
-        self, relations: Sequence["FreeGroupElement"]
+        self, relations: Sequence["FreeGroupElement"], max_steps: Optional[int] = None
     ) -> "SubgroupOfFreeGroup":
-        return self.subgroup(relations).normalization_in(self)
+        return self.subgroup(relations).normalization_in(self, max_steps=max_steps)
 
 
 @total_ordering

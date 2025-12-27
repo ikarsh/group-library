@@ -1,6 +1,7 @@
 from typing import (
     TYPE_CHECKING,
     Dict,
+    Iterator,
     List,
     Literal,
     Optional,
@@ -277,6 +278,13 @@ class SubgroupOfFreeGroup(Cached):
     def signed_gens(self) -> List[FreeGroupElement]:
         return [g**s for g in self.gens() for s in (-1, 1)]
 
+    def __iter__(
+        self, *, max_len: Optional[int] = None
+    ) -> Iterator["FreeGroupElement"]:
+        F = FreeGroup(len(self.gens()))
+        for w in F.__iter__(max_len=max_len):
+            yield w.substitute(self.free_group, self.gens())
+
     def walk_commensurable_word(self, elem: FreeGroupElement):
         path = self._identity_vertex.walk_word(elem)
         if path is None:
@@ -458,7 +466,7 @@ class SubgroupOfFreeGroup(Cached):
 
     @instance_cache
     def normalization_in(
-        self, other: "SubgroupOfFreeGroup | FreeGroup"
+        self, other: "SubgroupOfFreeGroup | FreeGroup", max_steps: Optional[int] = 100
     ) -> "SubgroupOfFreeGroup":
         # Beware the word problem!
 
@@ -471,7 +479,13 @@ class SubgroupOfFreeGroup(Cached):
         # We must take inverses here.
         gens = other.signed_gens()
 
+        i = -1
         while True:
+            i += 1
+            if max_steps is not None and i >= max_steps:
+                raise WordProblemError(
+                    "Normalization did not complete in the given number of steps."
+                )
             normal = True
             for a in res.gens():
                 for b in gens:
@@ -565,3 +579,6 @@ class SubgroupOfFreeGroup(Cached):
         return FiniteGroup(
             lift_group=other, kernel=self, code="verified normal and finite index"
         )
+
+class WordProblemError(Exception):
+    pass
